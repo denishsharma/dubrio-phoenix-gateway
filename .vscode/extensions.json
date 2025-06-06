@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "jripouteau.adonis-extension-pack",
+    "vivaxy.vscode-conventional-commits",
+    "usernamehw.errorlens",
+    "editorconfig.editorconfig",
+    "dotenv.dotenv-vscode",
+    "dbaeumer.vscode-eslint"
+  ],
+  "unwantedRecommendations": [
+    "esbenp.prettier-vscode"
+  ]
+}

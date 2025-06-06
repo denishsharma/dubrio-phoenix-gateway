@@ -6,6 +6,7 @@ tmp
 # Secrets
 .env
 .env.local
+.env.test
 .env.production.local
 .env.development.local
 
@@ -19,7 +20,18 @@ yarn-error.log
 # Editors specific
 .fleet
 .idea
-.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
 
 # Platform specific
 .DS_Store
+
+# Storage
+.storage
+
+# Documentation
+docs/module_graph.html
