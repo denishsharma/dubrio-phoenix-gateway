@@ -36,5 +36,6 @@
   "typescript.preferences.importModuleSpecifierEnding": "minimal",
   "[dot]": {
     "editor.defaultFormatter": "tintinweb.graphviz-interactive-preview"
-  }
+  },
+  "liveServer.settings.port": 5501
 }

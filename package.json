@@ -20,7 +20,10 @@
     "#database/*": "./database/*.js",
     "#start/*": "./start/*.js",
     "#tests/*": "./tests/*.js",
-    "#config/*": "./config/*.js"
+    "#config/*": "./config/*.js",
+    "#constants/*": "./app/constants/*.js",
+    "#core/*": "./app/core/*.js",
+    "#types/*": "./app/types/*.js"
   },
   "scripts": {
     "start": "node bin/server.js",
@@ -56,17 +59,25 @@
     "@japa/plugin-adonisjs": "^4.0.0",
     "@japa/runner": "^4.2.0",
     "@swc/core": "1.11.24",
+    "@types/lodash-es": "^4.17.12",
     "@types/node": "^22.15.18",
+    "better-enums": "^0.2.2",
+    "defu": "^6.1.4",
     "dependency-cruiser": "^16.10.2",
     "eslint": "^9.28.0",
     "eslint-plugin-command": "^3.2.1",
     "eslint-plugin-format": "^1.0.1",
     "hot-hook": "^0.4.0",
+    "http-status-codes": "^2.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
+    "lodash-es": "^4.17.21",
+    "mutative": "^1.2.0",
     "pino-pretty": "^13.0.0",
     "prettier": "^3.5.3",
+    "safe-stable-stringify": "^2.5.0",
     "ts-node-maintained": "^10.9.5",
+    "type-fest": "^4.41.0",
     "typescript": "~5.8"
   },
   "hotHook": {
