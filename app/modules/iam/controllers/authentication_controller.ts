@@ -20,7 +20,7 @@ export default class AuthenticationController {
       isVerified: false,
     })
 
-    await queue.dispatch(SendVerificationLinkJob, { email: user.email, verificationLink: `http://localhost:3333/verify?email=${user.email}` })
+    await queue.dispatch(SendVerificationLinkJob, { email: user.email, verificationLink: `http://localhost:3333/auth/verify?email=${user.email}` })
 
     return response.created({ message: 'User registered successfully', user })
   }
@@ -40,6 +40,22 @@ export default class AuthenticationController {
     await auth.use('web').login(user)
 
     response.ok({ message: 'Login successful', user })
+  }
+
+  async verifyEmail({ request, response }: HttpContext) {
+    const email = request.input('email')
+
+    const user = await User.findBy('email', email)
+
+    if (!user) {
+      return response.notFound({ message: 'User not found' })
+    }
+
+    user.isVerified = true
+    console.log(`User ${user.email} has been verified.`)
+    await user.save()
+
+    return response.redirect('https://www.youtube.com/')
   }
 
   async me({ auth, response }: HttpContext) {
