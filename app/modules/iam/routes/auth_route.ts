@@ -8,4 +8,5 @@ router.group(() => {
   router.post('/login', [AuthenticationController, 'verifyCredentials'])
   router.get('/me', [AuthenticationController, 'me']).middleware(middleware.auth())
   router.get('/verify', [AuthenticationController, 'verifyEmail'])
+  router.post('register/workspace', [AuthenticationController, 'registerWorkspace'])
 }).prefix(`auth`)

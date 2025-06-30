@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import User from '#models/user_model'
+import Workspace from '#models/workspace_model'
 import SendVerificationLinkJob from '#modules/iam/jobs/send_verification_link_job'
 import queue from '@rlanz/bull-queue/services/main'
 
@@ -56,6 +57,24 @@ export default class AuthenticationController {
     await user.save()
 
     return response.redirect('https://www.youtube.com/')
+  }
+
+  async registerWorkspace({ request, response }: HttpContext) {
+    const data = request.only([
+      'workspace_name',
+      'website',
+      'logo',
+      'industry',
+    ])
+
+    const workSpace = await Workspace.create({
+      workspaceName: data.workspace_name,
+      website: data.website,
+      logo: data.logo,
+      industry: data.industry,
+    })
+
+    return response.created({ message: 'Workspace created successfully', workSpace })
   }
 
   async me({ auth, response }: HttpContext) {
