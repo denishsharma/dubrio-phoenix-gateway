@@ -1,6 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import User from '#models/user_model'
-import Workspace from '#models/workspace_model'
 import SendVerificationLinkJob from '#modules/iam/jobs/send_verification_link_job'
 import queue from '@rlanz/bull-queue/services/main'
 
@@ -21,6 +20,10 @@ export default class AuthenticationController {
       isVerified: false,
     })
 
+    if (!user.email) {
+      return response.badRequest({ message: 'Email is required' })
+    }
+
     await queue.dispatch(SendVerificationLinkJob, { email: user.email, verificationLink: `http://localhost:3333/auth/verify?email=${user.email}` })
 
     return response.created({ message: 'User registered successfully', user })
@@ -30,6 +33,10 @@ export default class AuthenticationController {
     const { email, password } = request.only(['email', 'password'])
 
     const user = await User.verifyCredentials(email, password)
+
+    if (!user.email) {
+      return response.badRequest({ message: 'Email is required' })
+    }
 
     if (!user.isVerified) {
       await queue.dispatch(SendVerificationLinkJob, { email: user.email, verificationLink: `http://localhost:3333/verify?email=${user.email}` })
@@ -41,40 +48,6 @@ export default class AuthenticationController {
     await auth.use('web').login(user)
 
     response.ok({ message: 'Login successful', user })
-  }
-
-  async verifyEmail({ request, response }: HttpContext) {
-    const email = request.input('email')
-
-    const user = await User.findBy('email', email)
-
-    if (!user) {
-      return response.notFound({ message: 'User not found' })
-    }
-
-    user.isVerified = true
-    console.log(`User ${user.email} has been verified.`)
-    await user.save()
-
-    return response.redirect('https://www.youtube.com/')
-  }
-
-  async registerWorkspace({ request, response }: HttpContext) {
-    const data = request.only([
-      'workspace_name',
-      'website',
-      'logo',
-      'industry',
-    ])
-
-    const workSpace = await Workspace.create({
-      workspaceName: data.workspace_name,
-      website: data.website,
-      logo: data.logo,
-      industry: data.industry,
-    })
-
-    return response.created({ message: 'Workspace created successfully', workSpace })
   }
 
   async me({ auth, response }: HttpContext) {

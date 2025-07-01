@@ -4,27 +4,7 @@ import { Enum } from 'better-enums'
 export const EXCEPTION_CODE = Enum({
   E_ROUTE_NOT_FOUND: 'E_ROUTE_NOT_FOUND',
   E_VALIDATION: 'E_VALIDATION',
-  E_RESOURCE_NOT_FOUND: 'E_RESOURCE_NOT_FOUND',
-  E_RESOURCE_ALREADY_EXISTS: 'E_RESOURCE_ALREADY_EXISTS',
-  E_FORBIDDEN_ACTION: 'E_FORBIDDEN_ACTION',
   E_INTERNAL_SERVER: 'E_INTERNAL_SERVER',
-
-  E_JAKE_RESPONSE_VALIDATION: 'E_JAKE_RESPONSE_VALIDATION',
-
-  E_INVALID_CREDENTIALS: 'E_INVALID_CREDENTIALS',
-  E_UNAUTHORIZED: 'E_UNAUTHORIZED',
-  E_NOT_GUEST_USER: 'E_NOT_GUEST_USER',
-
-  E_ONBOARDING_AUTHENTICATION_REQUIRED: 'E_ONBOARDING_AUTHENTICATION_REQUIRED',
-  E_ONBOARDING_VERIFICATION_REQUIRED: 'E_ONBOARDING_VERIFICATION_REQUIRED',
-
-  E_INVALID_ACCOUNT_VERIFICATION_TOKEN: 'E_INVALID_ACCOUNT_VERIFICATION_TOKEN',
-  E_ACCOUNT_ALREADY_VERIFIED: 'E_ACCOUNT_ALREADY_VERIFIED',
-
-  E_SOCIAL_AUTHENTICATION_CANCELLED: 'E_SOCIAL_AUTHENTICATION_CANCELLED',
-  E_SOCIAL_AUTHENTICATION_STATE_MISMATCH: 'E_SOCIAL_AUTHENTICATION_STATE_MISMATCH',
-  E_SOCIAL_AUTHENTICATION_UNKNOWN_ERROR: 'E_SOCIAL_AUTHENTICATION_UNKNOWN_ERROR',
-  E_SOCIAL_AUTHENTICATION_PROVIDER_MISMATCH: 'E_SOCIAL_AUTHENTICATION_PROVIDER_MISMATCH',
 })
 
 export type ExceptionCode = InferValue<typeof EXCEPTION_CODE>
@@ -44,52 +24,7 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   [ExceptionCode.E_INTERNAL_SERVER]: {
     message: 'Unexpected error occurred while processing the request and the server is unable to fulfill the request.',
   },
-  [ExceptionCode.E_RESOURCE_NOT_FOUND]: {
-    message: 'The requested resource you are looking for could not be found.',
-  },
-  [ExceptionCode.E_RESOURCE_ALREADY_EXISTS]: {
-    message: 'The resource you are trying to create already exists.',
-  },
   [ExceptionCode.E_VALIDATION]: {
     message: 'Validation failed for the request while processing the request payload.',
-  },
-  [ExceptionCode.E_JAKE_RESPONSE_VALIDATION]: {
-    message: 'The response from the Jake language model did not match the expected validation schema.',
-  },
-  [ExceptionCode.E_FORBIDDEN_ACTION]: {
-    message: 'You do not have necessary permissions to perform the requested action.',
-  },
-  [ExceptionCode.E_INVALID_CREDENTIALS]: {
-    message: 'The credentials you provided are invalid and cannot be used to authenticate you.',
-  },
-  [ExceptionCode.E_UNAUTHORIZED]: {
-    message: 'You must be logged-in to access this resource or perform the requested action.',
-  },
-  [ExceptionCode.E_NOT_GUEST_USER]: {
-    message: 'You are already authenticated. Requested action or resource is only available for guest users.',
-  },
-  [ExceptionCode.E_ONBOARDING_AUTHENTICATION_REQUIRED]: {
-    message: 'Since you have already verified your profile, you must authenticate yourself using credentials to proceed.',
-  },
-  [ExceptionCode.E_ONBOARDING_VERIFICATION_REQUIRED]: {
-    message: 'You were already onboarded with this email address but not verified. Please verify your email address and profile to proceed.',
-  },
-  [ExceptionCode.E_INVALID_ACCOUNT_VERIFICATION_TOKEN]: {
-    message: 'This account verification link is either expired or invalid. Please request a new verification link to proceed.',
-  },
-  [ExceptionCode.E_ACCOUNT_ALREADY_VERIFIED]: {
-    message: 'This email address is already verified. Please use a different email address to proceed.',
-  },
-  [ExceptionCode.E_SOCIAL_AUTHENTICATION_CANCELLED]: {
-    message: 'The social authentication process was cancelled by the user.',
-  },
-  [ExceptionCode.E_SOCIAL_AUTHENTICATION_STATE_MISMATCH]: {
-    message: 'The social authentication state does not match the expected value or may have been tampered with.',
-  },
-  [ExceptionCode.E_SOCIAL_AUTHENTICATION_UNKNOWN_ERROR]: {
-    message: 'An unknown error occurred during the social authentication process.',
-  },
-  [ExceptionCode.E_SOCIAL_AUTHENTICATION_PROVIDER_MISMATCH]: {
-    message: 'The social provider you are trying to authenticate with does not match the expected provider.',
   },
 }

@@ -38,6 +38,9 @@ importers:
       '@vinejs/vine':
         specifier: ^3.0.1
         version: 3.0.1
+      adonis-lucid-soft-deletes:
+        specifier: ^2.1.0
+        version: 2.1.0(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@adonisjs/lucid@21.6.1(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@vinejs/vine@3.0.1)(luxon@3.6.1)(mysql2@3.14.1))
       axios:
         specifier: ^1.10.0
         version: 1.10.0
@@ -56,6 +59,9 @@ importers:
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
+      ulid:
+        specifier: ^3.0.1
+        version: 3.0.1
     devDependencies:
       '@adonisjs/assembler':
         specifier: ^7.8.2
@@ -1246,6 +1252,13 @@ packages:
     resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  adonis-lucid-soft-deletes@2.1.0:
+    resolution: {integrity: sha512-hDMKd1Ry1iG6sldKy/0l7I/EvQ8N6JEcVjz+qVUaN69xkrzOBJ1cm2AL+f24SgMru1Jm27njKttnKXGUjm7bzQ==}
+    engines: {node: '>=20.6.0'}
+    peerDependencies:
+      '@adonisjs/core': ^6.2.3
+      '@adonisjs/lucid': ^21.1.0
 
   ajv@6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
@@ -3901,6 +3914,10 @@ packages:
     resolution: {integrity: sha512-ZPtzy0hu4cZjv3z5NW9gfKnNLjoz4y6uv4HlelAjDK7sY/xOkKZv9xK/WQpcsBB3jEybChz9DPC2U/+cusjJVQ==}
     engines: {node: '>=18'}
 
+  ulid@3.0.1:
+    resolution: {integrity: sha512-dPJyqPzx8preQhqq24bBG1YNkvigm87K8kVEHCD+ruZg24t6IFEFv00xMWfxcC4djmFtiTLdFuADn4+DOz6R7Q==}
+    hasBin: true
+
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
@@ -5375,6 +5392,11 @@ snapshots:
       acorn: 8.15.0
 
   acorn@8.15.0: {}
+
+  adonis-lucid-soft-deletes@2.1.0(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@adonisjs/lucid@21.6.1(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@vinejs/vine@3.0.1)(luxon@3.6.1)(mysql2@3.14.1)):
+    dependencies:
+      '@adonisjs/core': 6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1)
+      '@adonisjs/lucid': 21.6.1(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@vinejs/vine@3.0.1)(luxon@3.6.1)(mysql2@3.14.1)
 
   ajv@6.12.6:
     dependencies:
@@ -8141,6 +8163,8 @@ snapshots:
       random-bytes: 1.0.0
 
   uint8array-extras@1.4.0: {}
+
+  ulid@3.0.1: {}
 
   undici-types@6.21.0: {}
 

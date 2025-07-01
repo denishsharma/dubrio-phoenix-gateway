@@ -25,7 +25,7 @@ export const registerUser = ({ request, response }: HttpContext) => {
 
     yield* Effect.tryPromise(() =>
       queue.dispatch(SendVerificationLinkJob, {
-        email: user.email,
+        email: user.email!,
         verificationLink: `http://localhost:3333/verify?email=${user.email}`,
       }),
     )
