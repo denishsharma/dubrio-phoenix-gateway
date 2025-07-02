@@ -47,6 +47,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   */
   SMTP_HOST: Env.schema.string(),
   SMTP_PORT: Env.schema.string(),
+  SMTP_USERNAME: Env.schema.string.optional(),
+  SMTP_PASSWORD: Env.schema.string.optional(),
 
   /*
   |----------------------------------------------------------
@@ -69,14 +71,17 @@ export default await Env.create(new URL('../', import.meta.url), {
   | Variables for configuring the whatsapp package
   |----------------------------------------------------------
   */
-  WHATSAPP_APP_ID: Env.schema.string(),
-  WHATSAPP_APP_SECRET: Env.schema.string(),
-  WHATSAPP_VERIFY_TOKEN: Env.schema.string(),
+  WHATSAPP_APP_ID: Env.schema.string.optional(),
+  WHATSAPP_APP_SECRET: Env.schema.string.optional(),
+  WHATSAPP_VERIFY_TOKEN: Env.schema.string.optional(),
   WHATSAPP_REDIRECT_URI: Env.schema.string.optional(),
   WHATSAPP_BUSINESS_ACCOUNT_ID: Env.schema.string.optional(),
 
-  DB_CONNECTION: Env.schema.string(),
-
+  /*
+  |----------------------------------------------------------
+  | Variables for configuring the cache package
+  |----------------------------------------------------------
+  */
   REDIS_HOST: Env.schema.string({ format: 'host' }),
   REDIS_PORT: Env.schema.number(),
   REDIS_PASSWORD: Env.schema.string.optional(),

@@ -56,7 +56,6 @@ export default defineConfig({
     () => import('@adonisjs/auth/auth_provider'),
     () => import('@rlanz/bull-queue/queue_provider'),
     () => import('@adonisjs/session/session_provider'),
-    () => import('@brighthustle/adonisjs-whatsapp/whatsapp_provider'),
     () => import('adonis-lucid-soft-deletes/provider'),
     () => import('@adonisjs/cache/cache_provider'),
     () => import('@adonisjs/redis/redis_provider'),

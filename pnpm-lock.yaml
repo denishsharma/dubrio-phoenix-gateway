@@ -35,9 +35,6 @@ importers:
       '@adonisjs/view':
         specifier: ^6.2.0
         version: 6.2.0(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))
-      '@brighthustle/adonisjs-whatsapp':
-        specifier: ^2.0.2
-        version: 2.0.2(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@adonisjs/lucid@21.6.1(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@vinejs/vine@3.0.1)(luxon@3.6.1)(mysql2@3.14.1))
       '@rlanz/bull-queue':
         specifier: ^3.1.0
         version: 3.1.0(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))
@@ -502,13 +499,6 @@ packages:
     peerDependenciesMeta:
       ioredis:
         optional: true
-
-  '@brighthustle/adonisjs-whatsapp@2.0.2':
-    resolution: {integrity: sha512-DAFcF2VKyUo0MhdC107sDAhlILZdOCDPSwlpjF5GwTVXIiHdogjCEsHR/BXue/60sZdvAsrUjEimkjC7TO1/hg==}
-    engines: {node: '>=18.16.0'}
-    peerDependencies:
-      '@adonisjs/core': ^6.2.1
-      '@adonisjs/lucid': ^19.0.0
 
   '@chevrotain/cst-dts-gen@11.0.3':
     resolution: {integrity: sha512-BvIKpRLeS/8UbfxXxgC33xOumsacaeCKAjAeLyOn7Pcp95HiRbrpl14S+9vaZLolnbssPIUuiUd8IvgkRyt6NQ==}
@@ -4570,17 +4560,6 @@ snapshots:
       object-hash: 3.0.0
     optionalDependencies:
       ioredis: 5.6.1
-
-  '@brighthustle/adonisjs-whatsapp@2.0.2(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@adonisjs/lucid@21.6.1(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@vinejs/vine@3.0.1)(luxon@3.6.1)(mysql2@3.14.1))':
-    dependencies:
-      '@adonisjs/core': 6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1)
-      '@adonisjs/lucid': 21.6.1(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@adonisjs/core@6.19.0(@adonisjs/assembler@7.8.2(typescript@5.8.3))(@vinejs/vine@3.0.1)(edge.js@5.5.1))(@vinejs/vine@3.0.1)(luxon@3.6.1)(mysql2@3.14.1)
-      '@poppinss/utils': 6.10.0
-      axios: 1.10.0
-      form-data: 4.0.3
-      mime-types: 2.1.35
-    transitivePeerDependencies:
-      - debug
 
   '@chevrotain/cst-dts-gen@11.0.3':
     dependencies:
