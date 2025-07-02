@@ -95,6 +95,11 @@ export class AccountVerificationService {
   }
 
   static async verifyToken(token: string): Promise<TokenDetails | null> {
+    /**
+     * ! DELETE THE TOKEN FROM CACHE AFTER USE
+     * ! This is important to prevent reuse of the token.
+     */
+
     // Look up the token in cache to get the key and details
     const tokenDetails = await cache
       .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
