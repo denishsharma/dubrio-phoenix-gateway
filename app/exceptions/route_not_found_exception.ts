@@ -1,11 +1,11 @@
+import type { ExceptionOptions } from '#core/error/factories/exception'
 import type { errors as appErrors } from '@adonisjs/core'
-import type { ExceptionOptions } from '../core/error/factories/exception.js'
+import { ExceptionCode } from '#constants/exception_code'
+import { Exception } from '#core/error/factories/exception'
 import { defu } from 'defu'
 import { Schema } from 'effect'
 import { StatusCodes } from 'http-status-codes'
 import { defaultTo } from 'lodash-es'
-import { ExceptionCode } from '../constants/exception_code.js'
-import { Exception } from '../core/error/factories/exception.js'
 
 /**
  * Exception occurs when a route is not found in the application.

@@ -2,10 +2,10 @@ import type User from '#models/user_model'
 import type { Duration } from '@adonisjs/cache/types'
 import { CacheNameSpace } from '#constants/cache_namespace'
 import SendVerificationLinkJob from '#modules/iam/jobs/send_verification_link_job'
+import StringMixerService from '#shared/common/services/string_mixer_service'
 import cache from '@adonisjs/cache/services/main'
 import {} from '@adonisjs/core/helpers'
 import queue from '@rlanz/bull-queue/services/main'
-import StringMixerService from '../../../shared/common/services/string_mixer_service.js'
 
 // Type for the payload used to generate a token
 interface TokenPayload {

@@ -1,8 +1,8 @@
-import type { Exception, ExceptionClass } from '../factories/exception.js'
-import type { InternalError, InternalErrorClass } from '../factories/internal_error.js'
+import type { Exception, ExceptionClass } from '#core/error/factories/exception'
+import type { InternalError, InternalErrorClass } from '#core/error/factories/internal_error'
+import { EXCEPTION_MARKER, INTERNAL_ERROR_MARKER } from '#core/error/constants/error_marker'
 import is from '@adonisjs/core/helpers/is'
 import { Effect } from 'effect'
-import { EXCEPTION_MARKER, INTERNAL_ERROR_MARKER } from '../constants/error_marker.js'
 
 export default class ErrorValidationService extends Effect.Service<ErrorValidationService>()('@service/core/error/validation', {
   effect: Effect.gen(function* () {
