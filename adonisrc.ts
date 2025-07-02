@@ -30,6 +30,7 @@ export default defineConfig({
     () => import('@adonisjs/lucid/commands'),
     () => import('@adonisjs/mail/commands'),
     () => import('@rlanz/bull-queue/commands'),
+    () => import('@adonisjs/cache/commands'),
   ],
 
   /*
@@ -57,6 +58,8 @@ export default defineConfig({
     () => import('@adonisjs/session/session_provider'),
     () => import('@brighthustle/adonisjs-whatsapp/whatsapp_provider'),
     () => import('adonis-lucid-soft-deletes/provider'),
+    () => import('@adonisjs/cache/cache_provider'),
+    () => import('@adonisjs/redis/redis_provider'),
   ],
 
   /*

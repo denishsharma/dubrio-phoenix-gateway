@@ -1,13 +1,11 @@
 import { BaseMail } from '@adonisjs/mail'
 
 export default class VerificationEmail extends BaseMail {
-  constructor(private email: string) {
+  constructor(private email: string, private verificationLink: string) {
     super()
   }
 
   prepare() {
-    const verifyLink = `http://localhost:3333/verify?email=${this.email}`
-
     this.message
       .to(this.email)
       .subject('Verify your email address')
@@ -43,16 +41,20 @@ export default class VerificationEmail extends BaseMail {
                       </p>
 
                       <!-- Verification Button -->
-                      <table role="presentation" style="margin: 30px 0;">
+                      <table role="presentation" style="margin: 30px 0; display: flex; flex-direction:column; align-items: center; justify-content: center; width: 100%;">
                         <tr>
-                          <td align="center">
-                            <a href="${verifyLink}"
+                          <td align="center" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <a href="${this.verificationLink}"
                                style="display: inline-block;
                                       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                       color: #ffffff;
                                       text-decoration: none;
                                       padding: 16px 32px;
                                       border-radius: 6px;
+                                      display: flex;
+                                      flex-direction: column;
+                                      align-items: center;
+                                      justify-content: center;
                                       font-weight: 600;
                                       font-size: 16px;
                                       transition: transform 0.2s ease;
@@ -62,22 +64,6 @@ export default class VerificationEmail extends BaseMail {
                           </td>
                         </tr>
                       </table>
-
-                      <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 30px 0 20px;">
-                        If the button doesn't work, you can copy and paste this link into your browser:
-                      </p>
-
-                      <p style="background-color: #f8f9fa;
-                                padding: 15px;
-                                border-radius: 4px;
-                                word-break: break-all;
-                                font-family: monospace;
-                                font-size: 14px;
-                                color: #495057;
-                                margin: 0 0 30px;">
-                        ${verifyLink}
-                      </p>
-
                       <p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 0;">
                         This verification link will expire in 24 hours for security reasons.
                       </p>

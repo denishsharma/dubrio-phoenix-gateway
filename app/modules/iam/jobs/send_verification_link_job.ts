@@ -13,12 +13,11 @@ export default class SendVerificationLinkJob extends Job {
   }
 
   async handle(payload: SendVerificationLinkJobPayload) {
-    await mail.send(new VerificationEmail(payload.email))
-    // throw new Error('Method not implemented.')
+    console.log('Sending verification email to:', payload)
+    await mail.send(new VerificationEmail(payload.email, payload.verificationLink))
   }
 
   async rescue(payload: unknown, error: Error) {
-    // throw new Error('Method not implemented.')
     console.error('Error sending verification email:', error)
     console.error('Payload:', payload)
   }

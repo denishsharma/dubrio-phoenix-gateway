@@ -1,6 +1,8 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import User from '#models/user_model'
+import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import SendVerificationLinkJob from '#modules/iam/jobs/send_verification_link_job'
+import { AccountVerificationService } from '#modules/iam/services/account_verification_service'
 import queue from '@rlanz/bull-queue/services/main'
 
 export default class AuthenticationController {
@@ -18,13 +20,16 @@ export default class AuthenticationController {
       email: data.email,
       password: data.password,
       isVerified: false,
+      onboardingStatus: OnboardingStatus.NOT_STARTED,
     })
 
     if (!user.email) {
       return response.badRequest({ message: 'Email is required' })
     }
 
-    await queue.dispatch(SendVerificationLinkJob, { email: user.email, verificationLink: `http://localhost:3333/auth/verify?email=${user.email}` })
+    // Dispatch a job to send the verification link
+
+    await AccountVerificationService.queueVerificationEmail(user)
 
     return response.created({ message: 'User registered successfully', user })
   }
