@@ -59,6 +59,7 @@ export default defineConfig({
     () => import('adonis-lucid-soft-deletes/provider'),
     () => import('@adonisjs/cache/cache_provider'),
     () => import('@adonisjs/redis/redis_provider'),
+    () => import('#providers/iam_provider'),
   ],
 
   /*

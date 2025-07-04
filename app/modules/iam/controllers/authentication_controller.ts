@@ -1,50 +1,64 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import User from '#models/user_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
-import { AccountVerificationService } from '#modules/iam/services/account_verification_service'
+import QueueVerificationEmailPayload from '#modules/iam/payloads/account_verification/queue_verification_email_payload'
+import AccountVerificationService from '#modules/iam/services/account_verification_service'
+import vine from '@vinejs/vine'
+import { Duration } from 'effect'
 
 export default class AuthenticationController {
+  protected accountVerification = new AccountVerificationService()
+
   async register({ request, response }: HttpContext) {
-    const data = request.only([
-      'firstName',
-      'lastName',
-      'email',
-      'password',
-    ])
+    const data = await request.validateUsing(vine.compile(
+      vine.object({
+        first_name: vine.string(),
+        last_name: vine.string().optional(),
+        email: vine.string().normalizeEmail(),
+        password: vine.string().minLength(6),
+      }),
+    ))
 
     const user = await User.create({
-      firstName: data.firstName,
-      lastName: data.lastName,
+      firstName: data.first_name,
+      lastName: data.last_name,
       email: data.email,
       password: data.password,
       isVerified: false,
       onboardingStatus: OnboardingStatus.NOT_STARTED,
     })
 
-    if (!user.email) {
-      return response.badRequest({ message: 'Email is required' })
-    }
+    await this.accountVerification.queueVerificationEmail(
+      QueueVerificationEmailPayload.make({
+        user_identifier: user.uid,
+        email: user.email ?? '',
+        duration: Duration.seconds(60 * 60 * 2),
+      }),
+    )
 
-    // Dispatch a job to send the verification link
-
-    await AccountVerificationService.queueVerificationEmail(user)
-
-    return response.created({ message: 'User registered successfully', user })
+    return response.created({ message: 'User registered successfully' })
   }
 
   async authenticateWithCredentials({ request, response, auth }: HttpContext) {
-    const { email, password } = request.only(['email', 'password'])
+    const data = await request.validateUsing(vine.compile(
+      vine.object({
+        email: vine.string().normalizeEmail(),
+        password: vine.string(),
+      }),
+    ))
 
-    const user = await User.verifyCredentials(email, password)
-
-    if (!user.email) {
-      return response.badRequest({ message: 'Email is required' })
-    }
+    const user = await User.verifyCredentials(data.email, data.password)
 
     if (!user.isVerified) {
-      await AccountVerificationService.queueVerificationEmail(user)
+      await this.accountVerification.queueVerificationEmail(
+        QueueVerificationEmailPayload.make({
+          user_identifier: user.uid,
+          email: user.email ?? '',
+          duration: Duration.seconds(60 * 60 * 2),
+        }),
+      )
       return response.unauthorized({
-        message: `Your account is not verified. A verification link has been sent to ${email}.`,
+        message: `Your account is not verified. A verification link has been sent to ${data.email}.`,
       })
     }
 

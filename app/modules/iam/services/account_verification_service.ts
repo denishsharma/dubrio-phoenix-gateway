@@ -1,114 +1,216 @@
-import type User from '#models/user_model'
-import type { Duration } from '@adonisjs/cache/types'
+import type QueueVerificationEmailPayload from '#modules/iam/payloads/account_verification/queue_verification_email_payload'
+import type VerifyTokenPayload from '#modules/iam/payloads/account_verification/verify_token_payload'
 import { CacheNameSpace } from '#constants/cache_namespace'
+import ErrorConversionService from '#core/error/services/error_conversion_service'
+import SchemaError from '#core/schema/errors/schema_error'
 import SendVerificationLinkJob from '#modules/iam/jobs/send_verification_link_job'
+import GenerateAccountVerificationTokenDetailPayload from '#modules/iam/payloads/account_verification/generate_account_verification_token_detail_payload'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import cache from '@adonisjs/cache/services/main'
-import {} from '@adonisjs/core/helpers'
+import { } from '@adonisjs/core/helpers'
 import queue from '@rlanz/bull-queue/services/main'
+import { Duration, Effect, pipe, Schema } from 'effect'
 
-// Type for the payload used to generate a token
-interface TokenPayload {
-  userId: string;
-  email: string;
-}
+export default class AccountVerificationService {
+  effectGenerateTokenDetails(payload: GenerateAccountVerificationTokenDetailPayload) {
+    return Effect.gen(function* () {
+      const stringMixer = yield* StringMixerService
+      const errorConversion = yield* ErrorConversionService
 
-// Type for the token details stored in cache
-interface TokenDetails {
-  userId: string;
-  email: string;
-  token: string;
-  key: string; // Store the key used for decoding
-  duration: Duration;
-}
+      const token = yield* stringMixer.encode(payload.user_identifier, payload.email)
 
-const DEFAULT_TOKEN_DURATION_SECONDS = '1D'
+      const details = yield* pipe(
+        {
+          user_identifier: payload.user_identifier,
+          email: payload.email,
+          token: {
+            value: token.value,
+            key: token.key,
+          },
+        },
+        Schema.decode(
+          Schema.Struct({
+            user_identifier: Schema.ULID,
+            email: Schema.String,
+            token: Schema.Struct({
+              value: Schema.String,
+              key: Schema.String,
+            }),
+          }),
+          { errors: 'all' },
+        ),
+        SchemaError.fromParseError('Unexpected error occurred while decoding the token details for caching.'),
+      )
 
-export class AccountVerificationService {
-  /**
-   * Generates a token for account verification and stores it in cache.
-   * @param payload - The payload containing userId and email.
-   * @param duration - The duration for which the token is valid.
-   * @returns A promise that resolves to the token details.
-   */
-  static async generateTokenDetails(
-    payload: TokenPayload,
-    duration: Duration = DEFAULT_TOKEN_DURATION_SECONDS,
-  ): Promise<TokenDetails> {
-    const { value: token, key } = StringMixerService.encode(payload.userId, payload.email)
-    const tokenDetails: TokenDetails = {
-      userId: payload.userId,
-      email: payload.email,
-      token,
-      key,
-      duration,
-    }
-    // Store in cache by userId (for resend)
-    await cache
-      .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
-      .set({
-        key: payload.userId,
-        value: tokenDetails,
-        ttl: duration,
+      yield* Effect.tryPromise({
+        try: () => cache
+          .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
+          .set({
+            key: payload.user_identifier,
+            value: details,
+            ttl: Duration.toMillis(payload.duration),
+          }),
+        catch: errorConversion.toUnknownError('Unexpected error occurred while caching the token details.'),
       })
-    // Store in cache by token (for verification)
-    await cache
-      .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
-      .set({
-        key: token,
-        value: tokenDetails,
-        ttl: duration,
-      })
-    return tokenDetails
+
+      return details
+    })
   }
 
-  /**
-   * Queues a verification email for the user.
-   * @param user - The user object containing email and uid.
-   */
-  static async queueVerificationEmail(user: User) {
-    if (!user.email) {
-      throw new Error('Email is required for verification')
-    }
+  async generateTokenDetails(payload: GenerateAccountVerificationTokenDetailPayload) {
+    return await Effect.runPromise(
+      this.effectGenerateTokenDetails(payload).pipe(
+        Effect.provide(StringMixerService.Default),
+        Effect.provide(ErrorConversionService.Default),
+      ),
+    )
+  }
 
-    const cacheKey = `${user.uid}`
-    const cacheToken = await cache
-      .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
-      .get<TokenDetails | null>({ key: cacheKey })
+  async queueVerificationEmail(payload: QueueVerificationEmailPayload) {
+    const program = Effect.gen(this, function* () {
+      const errorConversion = yield* ErrorConversionService
 
-    let tokenDetails: TokenDetails | null = null
+      const details = yield* pipe(
+        Effect.tryPromise({
+          try: () => cache
+            .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
+            .get<unknown>({ key: payload.user_identifier }),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving cached token details.'),
+        }),
+        Effect.flatMap(
+          data => pipe(
+            data,
+            Schema.decodeUnknown(
+              Schema.Struct({
+                user_identifier: Schema.ULID,
+                email: Schema.String,
+                token: Schema.Struct({
+                  value: Schema.String,
+                  key: Schema.String,
+                }),
+              }),
+              { errors: 'all' },
+            ),
+            SchemaError.fromParseError('Unexpected error occurred while decoding the cached token details.'),
+          ),
+        ),
+        Effect.catchTag('@error/internal/schema', () => Effect.gen(this, function* () {
+          return yield* this.effectGenerateTokenDetails(
+            GenerateAccountVerificationTokenDetailPayload.make({
+              user_identifier: payload.user_identifier,
+              email: payload.email,
+              duration: payload.duration,
+            }),
+          )
+        })),
+      )
 
-    if (!cacheToken) {
-      const payload: TokenPayload = {
-        userId: user.uid,
-        email: user.email,
+      console.log('Queueing verification email for:', details)
+
+      yield* Effect.tryPromise({
+        try: () => queue.dispatch(SendVerificationLinkJob, {
+          email: details.email,
+          verificationLink: `http://localhost:3000/account/verify/${details.token.value}?k=${details.token.key}`,
+        }),
+        catch: errorConversion.toUnknownError('Unexpected error occurred while dispatching the verification email job.'),
+      })
+    })
+
+    return await Effect.runPromise(
+      program.pipe(
+        Effect.provide(StringMixerService.Default),
+        Effect.provide(ErrorConversionService.Default),
+      ),
+    )
+  }
+
+  async verifyToken(payload: VerifyTokenPayload) {
+    const program = Effect.gen(function* () {
+      const stringMixer = yield* StringMixerService
+      const errorConversion = yield* ErrorConversionService
+
+      const decodedDetails = yield* stringMixer.decode(payload.token, payload.key)
+      if (!Array.isArray(decodedDetails) || decodedDetails.length !== 2) {
+        throw new Error('Invalid token format: Decoded details must contain userIdentifier and email.')
+      }
+      const [userIdentifier, email] = decodedDetails
+
+      console.log('Verifying token for user:', userIdentifier, 'with email:', email)
+
+      const cachedDetails = yield* pipe(
+        Effect.tryPromise({
+          try: () => cache
+            .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
+            .get({ key: userIdentifier }),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving cached token details.'),
+        }),
+        Effect.flatMap(
+          data => pipe(
+            data,
+            Schema.decodeUnknown(
+              Schema.Struct({
+                user_identifier: Schema.ULID,
+                email: Schema.String,
+                token: Schema.Struct({
+                  value: Schema.String,
+                  key: Schema.String,
+                }),
+              }),
+              { errors: 'all' },
+            ),
+            SchemaError.fromParseError('Unexpected error occurred while decoding the cached token details.'),
+          ),
+        ),
+      )
+
+      console.log('Cached details:', cachedDetails)
+
+      // compare the decoded details with the cached details
+      if (!cachedDetails
+        || cachedDetails.user_identifier !== userIdentifier
+        || cachedDetails.email !== email
+        || cachedDetails.token.value !== payload.token
+        || cachedDetails.token.key !== payload.key) {
+        throw new Error('Token validation failed: Invalid or expired token.')
       }
 
-      tokenDetails = await AccountVerificationService.generateTokenDetails(payload)
-    } else {
-      tokenDetails = cacheToken
-    }
+      // Delete the token from cache after use
+      yield* Effect.tryPromise({
+        try: () => cache
+          .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
+          .delete({ key: payload.token }),
+        catch: errorConversion.toUnknownError('Unexpected error occurred while deleting the token from cache.'),
+      })
 
-    console.log(`Token details for user ${user.email}:`, tokenDetails)
+      return {
+        user_identifier: cachedDetails.user_identifier,
+        email: cachedDetails.email,
+      }
+    })
 
-    await queue.dispatch(SendVerificationLinkJob, { email: tokenDetails.email, verificationLink: `http://localhost:3333/account/verify?token=${tokenDetails?.token}` })
+    return await Effect.runPromise(
+      program.pipe(
+        Effect.provide(StringMixerService.Default),
+        Effect.provide(ErrorConversionService.Default),
+      ),
+    )
   }
 
-  static async verifyToken(token: string): Promise<TokenDetails | null> {
-    /**
-     * ! DELETE THE TOKEN FROM CACHE AFTER USE
-     * ! This is important to prevent reuse of the token.
-     */
+  // async verifyToken(token: string): Promise<TokenDetails | null> {
+  //   /**
+  //    * ! DELETE THE TOKEN FROM CACHE AFTER USE
+  //    * ! This is important to prevent reuse of the token.
+  //    */
 
-    // Look up the token in cache to get the key and details
-    const tokenDetails = await cache
-      .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
-      .get<TokenDetails | null>({ key: token })
-    if (!tokenDetails) { return null }
-    const [userId, email] = StringMixerService.decode(token, tokenDetails.key)
-    if (userId !== tokenDetails.userId || email !== tokenDetails.email) {
-      return null
-    }
-    return tokenDetails
-  }
+  //   // Look up the token in cache to get the key and details
+  //   const tokenDetails = await cache
+  //     .namespace(CacheNameSpace.ACCOUNT_VERIFICATION_TOKEN)
+  //     .get<TokenDetails | null>({ key: token })
+  //   if (!tokenDetails) { return null }
+  //   const [userId, email] = StringMixerService.decode(token, tokenDetails.key)
+  //   if (userId !== tokenDetails.userId || email !== tokenDetails.email) {
+  //     return null
+  //   }
+  //   return tokenDetails
+  // }
 }
