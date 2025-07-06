@@ -1,6 +1,4 @@
 import type AcceptInvitePayload from '#modules/workspace/payloads/accept_invite_payload'
-import type InviteExistingUserPayload from '#modules/workspace/payloads/invite_existing_user_payload'
-import type InviteNewUserPayload from '#modules/workspace/payloads/invite_new_user_payload'
 import { CacheNameSpace } from '#constants/cache_namespace'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import SchemaError from '#core/schema/errors/schema_error'
@@ -9,112 +7,111 @@ import Workspace from '#models/workspace_model'
 import { WorkspaceMemberStatus } from '#modules/workspace/constants/workspace_member_status'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import cache from '@adonisjs/cache/services/main'
-import { Duration, Effect, pipe, Schema } from 'effect'
-import { ulid } from 'ulid'
+import { Effect, pipe, Schema } from 'effect'
 
 export default class InviteUserService {
-  // Generate and cache invite token for existing user
-  private effectGenerateInviteToken(payload: InviteExistingUserPayload) {
-    return Effect.gen(function* () {
-      const stringMixer = yield* StringMixerService
-      const errorConversion = yield* ErrorConversionService
+  // // Generate and cache invite token for existing user
+  // private effectGenerateInviteToken(payload: InviteExistingUserPayload) {
+  //   return Effect.gen(function* () {
+  //     const stringMixer = yield* StringMixerService
+  //     const errorConversion = yield* ErrorConversionService
 
-      const token = yield* stringMixer.encode(payload.user_id, payload.workspace_id, payload.email)
+  //     const token = yield* stringMixer.encode(payload.user_id, payload.workspace_id, payload.email)
 
-      const details = yield* pipe(
-        {
-          user_id: payload.user_id,
-          workspace_id: payload.workspace_id,
-          inviter_id: payload.inviter_id,
-          email: payload.email,
-          token: {
-            value: token.value,
-            key: token.key,
-          },
-        },
-        Schema.decode(
-          Schema.Struct({
-            user_id: Schema.ULID,
-            workspace_id: Schema.ULID,
-            inviter_id: Schema.ULID,
-            email: Schema.String,
-            token: Schema.Struct({
-              value: Schema.String,
-              key: Schema.String,
-            }),
-          }),
-          { errors: 'all' },
-        ),
-        SchemaError.fromParseError('Unexpected error occurred while decoding the invite token details for caching.'),
-      )
+  //     const details = yield* pipe(
+  //       {
+  //         user_id: payload.user_id,
+  //         workspace_id: payload.workspace_id,
+  //         inviter_id: payload.inviter_id,
+  //         email: payload.email,
+  //         token: {
+  //           value: token.value,
+  //           key: token.key,
+  //         },
+  //       },
+  //       Schema.decode(
+  //         Schema.Struct({
+  //           user_id: Schema.ULID,
+  //           workspace_id: Schema.ULID,
+  //           inviter_id: Schema.ULID,
+  //           email: Schema.String,
+  //           token: Schema.Struct({
+  //             value: Schema.String,
+  //             key: Schema.String,
+  //           }),
+  //         }),
+  //         { errors: 'all' },
+  //       ),
+  //       SchemaError.fromParseError('Unexpected error occurred while decoding the invite token details for caching.'),
+  //     )
 
-      yield* Effect.tryPromise({
-        try: () => cache
-          .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
-          .set({
-            key: `${payload.user_id}_${payload.workspace_id}`,
-            value: details,
-            ttl: Duration.toMillis(payload.duration),
-          }),
-        catch: errorConversion.toUnknownError('Unexpected error occurred while caching the invite token details.'),
-      })
+  //     yield* Effect.tryPromise({
+  //       try: () => cache
+  //         .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+  //         .set({
+  //           key: `${payload.user_id}_${payload.workspace_id}`,
+  //           value: details,
+  //           ttl: Duration.toMillis(payload.duration),
+  //         }),
+  //       catch: errorConversion.toUnknownError('Unexpected error occurred while caching the invite token details.'),
+  //     })
 
-      return details
-    })
-  }
+  //     return details
+  //   })
+  // }
 
-  // Generate and cache invite token for new user
-  private effectGenerateNewUserInviteToken(payload: InviteNewUserPayload) {
-    return Effect.gen(function* () {
-      const stringMixer = yield* StringMixerService
-      const errorConversion = yield* ErrorConversionService
+  // // Generate and cache invite token for new user
+  // private effectGenerateNewUserInviteToken(payload: InviteNewUserPayload) {
+  //   return Effect.gen(function* () {
+  //     const stringMixer = yield* StringMixerService
+  //     const errorConversion = yield* ErrorConversionService
 
-      const tempUserId = ulid()
-      const token = yield* stringMixer.encode(tempUserId, payload.workspace_id, payload.email)
+  //     const tempUserId = ulid()
+  //     const token = yield* stringMixer.encode(tempUserId, payload.workspace_id, payload.email)
 
-      const details = yield* pipe(
-        {
-          temp_user_id: tempUserId,
-          workspace_id: payload.workspace_id,
-          inviter_id: payload.inviter_id,
-          email: payload.email,
-          first_name: payload.first_name,
-          token: {
-            value: token.value,
-            key: token.key,
-          },
-        },
-        Schema.decode(
-          Schema.Struct({
-            temp_user_id: Schema.ULID,
-            workspace_id: Schema.ULID,
-            inviter_id: Schema.ULID,
-            email: Schema.String,
-            first_name: Schema.String,
-            token: Schema.Struct({
-              value: Schema.String,
-              key: Schema.String,
-            }),
-          }),
-          { errors: 'all' },
-        ),
-        SchemaError.fromParseError('Unexpected error occurred while decoding the new user invite token details for caching.'),
-      )
+  //     const details = yield* pipe(
+  //       {
+  //         temp_user_id: tempUserId,
+  //         workspace_id: payload.workspace_id,
+  //         inviter_id: payload.inviter_id,
+  //         email: payload.email,
+  //         first_name: payload.first_name,
+  //         token: {
+  //           value: token.value,
+  //           key: token.key,
+  //         },
+  //       },
+  //       Schema.decode(
+  //         Schema.Struct({
+  //           temp_user_id: Schema.ULID,
+  //           workspace_id: Schema.ULID,
+  //           inviter_id: Schema.ULID,
+  //           email: Schema.String,
+  //           first_name: Schema.String,
+  //           token: Schema.Struct({
+  //             value: Schema.String,
+  //             key: Schema.String,
+  //           }),
+  //         }),
+  //         { errors: 'all' },
+  //       ),
+  //       SchemaError.fromParseError('Unexpected error occurred while decoding the new user invite token details for caching.'),
+  //     )
 
-      yield* Effect.tryPromise({
-        try: () => cache
-          .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
-          .set({
-            key: `${tempUserId}_${payload.workspace_id}`,
-            value: details,
-            ttl: Duration.toMillis(payload.duration),
-          }),
-        catch: errorConversion.toUnknownError('Unexpected error occurred while caching the new user invite token details.'),
-      })
+  //     yield* Effect.tryPromise({
+  //       try: () => cache
+  //         .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+  //         .set({
+  //           key: `${tempUserId}_${payload.workspace_id}`,
+  //           value: details,
+  //           ttl: Duration.toMillis(payload.duration),
+  //         }),
+  //       catch: errorConversion.toUnknownError('Unexpected error occurred while caching the new user invite token details.'),
+  //     })
 
-      return details
-    })
-  }
+  //     return details
+  //   })
+  // }
 
   // // Send invite to existing user
   // async inviteExistingUser(payload: InviteExistingUserPayload) {
