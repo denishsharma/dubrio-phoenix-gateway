@@ -16,6 +16,7 @@ export default class extends BaseSchema {
 
       table.boolean('is_verified').defaultTo(false)
       table.string('onboarding_status').defaultTo(OnboardingStatus.NOT_STARTED)
+      table.integer('default_workspace_id').unsigned().nullable().references('id').inTable('workspaces')
 
       table.timestamp('created_at')
       table.timestamp('updated_at')

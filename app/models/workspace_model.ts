@@ -1,8 +1,9 @@
-import type { ManyToMany } from '@adonisjs/lucid/types/relations'
+import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
 import User from '#models/user_model'
+import { WorkspaceMemberStatus } from '#modules/workspace/constants/workspace_member_status'
 import { compose } from '@adonisjs/core/helpers'
-import { BaseModel, beforeCreate, column, manyToMany } from '@adonisjs/lucid/orm'
+import { BaseModel, beforeCreate, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
 import { SoftDeletes } from 'adonis-lucid-soft-deletes'
 import { defaultTo } from 'lodash-es'
 import { ulid } from 'ulid'
@@ -34,13 +35,27 @@ export default class Workspace extends compose(BaseModel, SoftDeletes) {
 
   @manyToMany(() => User, {
     pivotTable: 'workspace_members',
-    pivotColumns: ['invited_by', 'joined_at'],
+    pivotColumns: [
+      'invited_by',
+      'joined_at',
+      'is_active',
+      'status',
+    ],
     pivotTimestamps: true,
   })
-  declare users: ManyToMany<typeof User>
+  declare members: ManyToMany<typeof User>
+
+  @hasMany(() => User, {
+    foreignKey: 'default_workspace_id',
+  })
+  declare usersWithDefaultWorkspace: HasMany<typeof User>
 
   @beforeCreate()
   static assignUniqueIdentifier(workspace: Workspace) {
     workspace.uid = defaultTo(workspace.uid, ulid())
+  }
+
+  static get workspaceMemberStatus() {
+    return WorkspaceMemberStatus
   }
 }

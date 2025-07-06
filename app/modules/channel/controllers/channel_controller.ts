@@ -71,12 +71,6 @@ export default class ChannelController {
       const token = request.input('hub.verify_token')
       const challenge = request.input('hub.challenge')
 
-      console.log({
-        mode: request.input('hub.mode'),
-        token: request.input('hub.verify_token'),
-        challenge: request.input('hub.challenge'),
-      })
-
       if (mode === 'subscribe' && token === env.get('WHATSAPP_VERIFY_TOKEN')) {
         return response.status(200).send(challenge)
       } else {

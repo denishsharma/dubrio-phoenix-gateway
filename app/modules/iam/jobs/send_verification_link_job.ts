@@ -1,4 +1,5 @@
 import VerificationEmail from '#modules/iam/mail/verification_email'
+import app from '@adonisjs/core/services/app'
 import mail from '@adonisjs/mail/services/main'
 import { Job } from '@rlanz/bull-queue'
 
@@ -13,10 +14,9 @@ export default class SendVerificationLinkJob extends Job {
   }
 
   async handle(payload: SendVerificationLinkJobPayload) {
-    console.log('Sending verification email to:', payload.verificationLink)
-    // if (app.inProduction) {
-    await mail.send(new VerificationEmail(payload.email, payload.verificationLink))
-    // }
+    if (app.inProduction) {
+      await mail.send(new VerificationEmail(payload.email, payload.verificationLink))
+    }
   }
 
   async rescue(payload: unknown, error: Error) {

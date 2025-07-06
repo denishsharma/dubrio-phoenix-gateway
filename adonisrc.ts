@@ -60,6 +60,7 @@ export default defineConfig({
     () => import('@adonisjs/cache/cache_provider'),
     () => import('@adonisjs/redis/redis_provider'),
     () => import('#providers/iam_provider'),
+    () => import('#providers/workspace_provider'),
   ],
 
   /*

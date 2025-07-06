@@ -11,6 +11,8 @@ export default class extends BaseSchema {
       table.integer('workspace_id').unsigned().references('id').inTable('workspaces')
       table.integer('invited_by').unsigned().references('id').inTable('users')
       table.timestamp('joined_at').nullable()
+      table.boolean('is_active').defaultTo(false)
+      table.string('status').defaultTo('invited')
 
       table.timestamp('created_at')
       table.timestamp('updated_at')

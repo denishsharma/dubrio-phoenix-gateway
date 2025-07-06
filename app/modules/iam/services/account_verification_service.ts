@@ -105,8 +105,6 @@ export default class AccountVerificationService {
         })),
       )
 
-      console.log('Queueing verification email for:', details)
-
       yield* Effect.tryPromise({
         try: () => queue.dispatch(SendVerificationLinkJob, {
           email: details.email,
@@ -135,8 +133,6 @@ export default class AccountVerificationService {
       }
       const [userIdentifier, email] = decodedDetails
 
-      console.log('Verifying token for user:', userIdentifier, 'with email:', email)
-
       const cachedDetails = yield* pipe(
         Effect.tryPromise({
           try: () => cache
@@ -162,8 +158,6 @@ export default class AccountVerificationService {
           ),
         ),
       )
-
-      console.log('Cached details:', cachedDetails)
 
       // compare the decoded details with the cached details
       if (!cachedDetails

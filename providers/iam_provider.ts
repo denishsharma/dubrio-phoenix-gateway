@@ -1,5 +1,6 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import AccountVerificationService from '#modules/iam/services/account_verification_service'
+import InviteUserService from '#modules/workspace/services/invite_user_service'
 
 export default class IamProvider {
   constructor(protected app: ApplicationService) {}
@@ -10,6 +11,9 @@ export default class IamProvider {
   register() {
     this.app.container.singleton(AccountVerificationService, () => {
       return new AccountVerificationService()
+    })
+    this.app.container.singleton(InviteUserService, () => {
+      return new InviteUserService()
     })
   }
 

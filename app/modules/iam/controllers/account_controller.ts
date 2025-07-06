@@ -11,8 +11,6 @@ export default class AccountController {
     const token = params.token
     const key = request.input('k')
 
-    console.log('Verifying account with token:', token, 'and key:', key)
-
     const tokenDetails = await this.accountVerification.verifyToken(
       VerifyTokenPayload.make({
         token,

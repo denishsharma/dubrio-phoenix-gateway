@@ -1,16 +1,20 @@
-import type { ManyToMany } from '@adonisjs/lucid/types/relations'
+import type { BelongsTo, ManyToMany } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
+import TypedEffectService from '#core/effect/services/typed_effect_service'
 import BooleanColumn from '#core/lucid/columns/boolean'
 import EnumColumn from '#core/lucid/columns/enum'
+import LucidModelRelationshipError from '#core/lucid/errors/lucid_model_relationship_error'
 import UsingLucidColumn from '#core/lucid/utils/using_lucid_column'
 import Workspace from '#models/workspace_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import { DbAccessTokensProvider } from '@adonisjs/auth/access_tokens'
 import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
 import { compose } from '@adonisjs/core/helpers'
+import is from '@adonisjs/core/helpers/is'
 import hash from '@adonisjs/core/services/hash'
-import { BaseModel, beforeCreate, column, manyToMany } from '@adonisjs/lucid/orm'
+import { BaseModel, beforeCreate, belongsTo, column, manyToMany } from '@adonisjs/lucid/orm'
 import { SoftDeletes } from 'adonis-lucid-soft-deletes'
+import { Effect, pipe } from 'effect'
 import { defaultTo } from 'lodash-es'
 import { ulid } from 'ulid'
 
@@ -52,6 +56,9 @@ export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
   @UsingLucidColumn(EnumColumn(() => ({ enum: OnboardingStatus, default: () => OnboardingStatus.NOT_STARTED })))
   declare onboardingStatus: OnboardingStatus
 
+  @column()
+  declare defaultWorkspaceId: number | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
@@ -60,10 +67,80 @@ export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
 
   @manyToMany(() => Workspace, {
     pivotTable: 'workspace_members',
-    pivotColumns: ['invited_by', 'joined_at'],
+    pivotColumns: [
+      'invited_by',
+      'joined_at',
+      'is_active',
+      'status',
+    ],
     pivotTimestamps: true,
   })
-  declare workspace: ManyToMany<typeof Workspace>
+  declare workspaces: ManyToMany<typeof Workspace>
+
+  @belongsTo(() => Workspace, {
+    foreignKey: 'default_workspace_id',
+  })
+  declare defaultWorkspace: BelongsTo<typeof Workspace>
+
+  get $relations() {
+    return new class {
+      constructor(private readonly user: User) {}
+
+      get workspaces() {
+        return Effect.gen(this, function* () {
+          const typedEffect = yield* TypedEffectService
+
+          return yield* pipe(
+            Effect.tryPromise({
+              try: async () => {
+                if (is.null(this.user.workspaces)) {
+                  await this.user.loadOnce('workspaces')
+                }
+                return this.user.workspaces
+              },
+              catch: LucidModelRelationshipError.fromUnknownError(User.name, Workspace.name, 'workspaces'),
+            }),
+            Effect.flatMap(
+              _ => Effect.gen(function* () {
+                if (is.null(_)) {
+                  return yield* new LucidModelRelationshipError({ model: User.name, relatedModel: Workspace.name, relationship: 'workspaces' })
+                }
+                return _
+              }),
+            ),
+            typedEffect.overrideSuccessType<ManyToMany<typeof Workspace>>(),
+          )
+        })
+      }
+
+      get defaultWorkspace() {
+        return Effect.gen(this, function* () {
+          const typedEffect = yield* TypedEffectService
+
+          return yield* pipe(
+            Effect.tryPromise({
+              try: async () => {
+                if (is.null(this.user.defaultWorkspace)) {
+                  await this.user.loadOnce('defaultWorkspace')
+                }
+                return this.user.defaultWorkspace
+              },
+              catch: LucidModelRelationshipError.fromUnknownError(User.name, Workspace.name, 'defaultWorkspace'),
+            }),
+            Effect.flatMap(
+              _ => Effect.gen(function* () {
+                if (is.null(_)) {
+                  return yield* new LucidModelRelationshipError({ model: User.name, relatedModel: Workspace.name, relationship: 'defaultWorkspace' })
+                }
+                return _
+              }),
+            ),
+            typedEffect.overrideSuccessType<BelongsTo<typeof Workspace>>(),
+          )
+        })
+      }
+    }(this)
+  }
 
   @beforeCreate()
   static assignUniqueIdentifier(user: User) {

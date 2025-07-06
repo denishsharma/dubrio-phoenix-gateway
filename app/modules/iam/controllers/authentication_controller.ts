@@ -71,4 +71,32 @@ export default class AuthenticationController {
     const user = await auth.use('web').user
     return response.ok({ user })
   }
+
+  async handleInvitedUser({ request, response }: HttpContext) {
+    console.log('Handling invited user...')
+    const data = await request.validateUsing(vine.compile(
+      vine.object({
+        first_name: vine.string(),
+        last_name: vine.string().optional(),
+        email: vine.string().normalizeEmail(),
+        password: vine.string().minLength(6),
+      }),
+    ))
+
+    const user = await User.findBy('email', data.email)
+    if (!user) {
+      return response.notFound({ message: 'User not found' })
+    }
+
+    user.firstName = data.first_name
+    user.lastName = data.last_name || ''
+    user.password = data.password
+    user.isVerified = true
+
+    await user.save()
+
+    return response.ok({
+      message: 'User updated successfully',
+    })
+  }
 }
