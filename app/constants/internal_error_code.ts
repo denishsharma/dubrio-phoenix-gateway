@@ -6,7 +6,15 @@ export const INTERNAL_ERROR_CODE = Enum({
   I_SCHEMA: 'I_SCHEMA',
   I_JSON: 'I_JSON',
 
+  I_LUCID_MODEL_RELATIONSHIP: 'I_LUCID_MODEL_RELATIONSHIP',
   I_LUCID_COLUMN_VALUE: 'I_LUCID_COLUMN_VALUE',
+
+  I_HTTP_CONTEXT_UNAVAILABLE: 'I_HTTP_CONTEXT_UNAVAILABLE',
+
+  I_DATA_PAYLOAD_NOT_VALIDATED: 'I_DATA_PAYLOAD_NOT_VALIDATED',
+  I_DATA_PAYLOAD_KIND_MISMATCH: 'I_DATA_PAYLOAD_KIND_MISMATCH',
+  I_DATA_PAYLOAD_INVALID_DATA_SOURCE: 'I_DATA_PAYLOAD_INVALID_DATA_SOURCE',
+
 })
 
 //* *
@@ -35,7 +43,22 @@ export const INTERNAL_ERROR_CODE_METADATA: Record<InternalErrorCode, InternalErr
   [InternalErrorCode.I_UNKNOWN]: {
     message: 'An unknown error that was not expected occurred and not able to be handled.',
   },
+  [InternalErrorCode.I_LUCID_MODEL_RELATIONSHIP]: {
+    message: 'Unexpected error occurred while loading the relationship of a Lucid model.',
+  },
   [InternalErrorCode.I_LUCID_COLUMN_VALUE]: {
     message: 'Unexpected error occurred while consuming or preparing a value for a Lucid column.',
+  },
+  [InternalErrorCode.I_HTTP_CONTEXT_UNAVAILABLE]: {
+    message: 'The HTTP context is not available in the current scope of execution.',
+  },
+  [InternalErrorCode.I_DATA_PAYLOAD_NOT_VALIDATED]: {
+    message: 'You have requested data from a payload that has not been validated yet. Please validate the payload before accessing the data.',
+  },
+  [InternalErrorCode.I_DATA_PAYLOAD_KIND_MISMATCH]: {
+    message: 'The data payload kind does not match the expected kind and cannot be processed.',
+  },
+  [InternalErrorCode.I_DATA_PAYLOAD_INVALID_DATA_SOURCE]: {
+    message: 'The data source provided to the data payload is invalid and cannot be processed.',
   },
 }
