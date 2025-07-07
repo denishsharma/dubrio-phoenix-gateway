@@ -1,4 +1,6 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
+import type AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
+import type InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
 import type SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
 import { CacheNameSpace } from '#constants/cache_namespace'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
@@ -6,19 +8,25 @@ import HttpContext from '#core/http/contexts/http_context'
 import SchemaError from '#core/schema/errors/schema_error'
 import User from '#models/user_model'
 import Workspace from '#models/workspace_model'
+import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import AuthenticationService from '#modules/iam/services/authentication_service'
 import { WorkspaceMemberStatus } from '#modules/workspace/constants/workspace_member_status'
 import SendWorkspaceInviteJob from '#modules/workspace/jobs/send_workspace_invite_job'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import cache from '@adonisjs/cache/services/main'
 import queue from '@rlanz/bull-queue/services/main'
-import { Effect, pipe, Schema } from 'effect'
+import { Effect, pipe, Redacted, Schema } from 'effect'
 
 export default class WorkspaceService extends Effect.Service<WorkspaceService>()('@service/modules/workspace', {
-  dependencies: [AuthenticationService.Default],
+  dependencies: [
+    AuthenticationService.Default,
+    ErrorConversionService.Default,
+    StringMixerService.Default,
+  ],
   effect: Effect.gen(function* () {
     const authenticationService = yield* AuthenticationService
     const errorConversion = yield* ErrorConversionService
+    const stringMixer = yield* StringMixerService
 
     function sendWorkspaceInviteEmail(payload: ProcessedDataPayload<SendWorkspaceInviteEmailPayload>) {
       return Effect.gen(function* () {
@@ -27,7 +35,6 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
         const currentActiveWorkspaceId = ctx.activeWorkspaceId
         const invitedByUser = yield* authenticationService.getAuthenticatedUser
-        const stringMixer = yield* StringMixerService
 
         const workspace = yield* Effect.tryPromise({
           try: () => Workspace.query()
@@ -39,25 +46,12 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
         yield* Effect.forEach(
           payload.invitees,
           inviteeEmail => Effect.gen(function* () {
-            let user = yield* Effect.tryPromise({
-              try: () => User.query().where('email', inviteeEmail).first(),
-              catch: errorConversion.toUnknownError('Unexpected error occurred while fetching user by email.'),
-            })
-
-            if (!user) {
-              user = yield* Effect.tryPromise({
-                try: () => User.create({ email: inviteeEmail, isVerified: false }),
-                catch: errorConversion.toUnknownError('Unexpected error occurred while creating user.'),
-              })
-            }
-
-            const tokenObj = yield* stringMixer.encode(user.uid, inviteeEmail)
+            const tokenObj = yield* stringMixer.encode(workspace.uid, inviteeEmail)
 
             const cachePayload = yield* pipe(
               {
-                user_id: user.id,
-                workspace_id: workspace.id,
-                inviter_id: invitedByUser.id,
+                workspace_id: workspace.uid,
+                sender_id: invitedByUser.uid,
                 invitee_email: inviteeEmail,
                 token: {
                   value: tokenObj.value,
@@ -66,9 +60,8 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
               },
               Schema.decode(
                 Schema.Struct({
-                  user_id: Schema.Number,
-                  workspace_id: Schema.Number,
-                  inviter_id: Schema.Number,
+                  workspace_id: Schema.ULID,
+                  sender_id: Schema.ULID,
                   invitee_email: Schema.String,
                   token: Schema.Struct({
                     value: Schema.String,
@@ -80,11 +73,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
               SchemaError.fromParseError('Unexpected error occurred while decoding the cache payload.'),
             )
 
-            console.log('Caching invite token for user:', user.uid, 'with email:', inviteeEmail)
-
             console.warn('Storing invite token:', {
               namespace: CacheNameSpace.WORKSPACE_INVITE_TOKEN,
-              key: user.uid,
+              key: `${workspace.uid}_${inviteeEmail}`,
               value: cachePayload,
             })
 
@@ -92,7 +83,7 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
               try: () => cache
                 .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
                 .set({
-                  key: user.uid,
+                  key: `${workspace.uid}_${inviteeEmail}`,
                   value: cachePayload,
                   ttl: '1d',
                 }),
@@ -117,25 +108,17 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
       })
     }
 
-    function verifyInvite(payload: { token: string; k: string }) {
+    function acceptInvite(payload: ProcessedDataPayload<AcceptWorkspaceInvitePayload>) {
       return Effect.gen(function* () {
-        const token = payload.token
-        const key = payload.k
-        const stringMixer = yield* StringMixerService
+        const token = payload.token.value
+        const key = payload.token.key
 
-        const decodedDetails = yield* stringMixer.decode(token, key)
-        if (!Array.isArray(decodedDetails) || decodedDetails.length < 2) {
-          throw new Error('Invalid token format')
-        }
-
-        const [userId] = decodedDetails
-
-        console.log('Verifying invite for user:', userId, 'with token:', token, 'and key:', key)
+        const [workspaceId, inviteeEmail] = yield* stringMixer.decode(token, key)
 
         const cachedInvite = yield* Effect.tryPromise({
           try: () => cache
             .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
-            .get({ key: userId }),
+            .get({ key: `${workspaceId}_${inviteeEmail}` }),
           catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving cached invite token.'),
         })
 
@@ -143,13 +126,12 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           throw new Error('Invite token not found or expired')
         }
 
-        const cachedData = yield* pipe(
+        const cacheData = yield* pipe(
           cachedInvite,
           Schema.decodeUnknown(
             Schema.Struct({
-              user_id: Schema.Number,
-              workspace_id: Schema.Number,
-              inviter_id: Schema.Number,
+              workspace_id: Schema.ULID,
+              sender_id: Schema.ULID,
               invitee_email: Schema.String,
               token: Schema.Struct({
                 value: Schema.String,
@@ -160,28 +142,12 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           SchemaError.fromParseError('Unexpected error occurred while decoding cached invite token.'),
         )
 
-        yield* Effect.tryPromise({
-          try: () => cache
-            .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
-            .delete({ key: userId }),
-          catch: errorConversion.toUnknownError('Unexpected error occurred while deleting invite token from cache.'),
-        })
-
-        if (cachedData.token.value !== token || cachedData.token.key !== key) {
+        if (cacheData.token.value !== token || cacheData.token.key !== key) {
           throw new Error('Token validation failed')
         }
 
-        const user = yield* Effect.tryPromise({
-          try: () => User.findBy('uid', userId),
-          catch: errorConversion.toUnknownError('Failed to fetch user'),
-        })
-
-        if (!user) {
-          throw new Error('User not found')
-        }
-
         const workspace = yield* Effect.tryPromise({
-          try: () => Workspace.findBy('id', cachedData.workspace_id),
+          try: () => Workspace.findBy('uid', cacheData.workspace_id),
           catch: errorConversion.toUnknownError('Failed to fetch workspace'),
         })
 
@@ -189,62 +155,284 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           throw new Error('Workspace not found')
         }
 
-        console.log('Adding user to workspace:', user.id, 'in workspace:', workspace.id, 'with inviter:', cachedData.inviter_id)
-
-        yield* Effect.tryPromise({
-          try: () => user.related('workspaces').attach({
-            [workspace.id]: {
-              invited_by: cachedData.inviter_id,
-              joined_at: null,
-              status: WorkspaceMemberStatus.ACTIVE,
-              is_active: false,
-            },
-          }),
-          catch: errorConversion.toUnknownError('Unexpected error occurred while adding user to workspace.'),
+        const sender = yield* Effect.tryPromise({
+          try: () => User.findBy('uid', cacheData.sender_id),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while fetching sender user.'),
         })
 
-        const hasPassword = user.password && user.password.length > 0
-        const hasFirstName = user.firstName && user.firstName.length > 0
+        if (!sender) {
+          throw new Error('The person who invited you is not found')
+        }
 
-        yield* Effect.tryPromise({
-          try: () => cache
-            .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
-            .delete({ key: userId }),
-          catch: errorConversion.toUnknownError('Unexpected error occurred while deleting invite token from cache.'),
-        })
+        if (payload.mode === 'accept') {
+          const getAuthenticatedUser = yield* authenticationService.getAuthenticatedUser
 
-        if (hasPassword && hasFirstName) {
+          if (inviteeEmail !== getAuthenticatedUser.email) {
+            throw new Error('You logged in with a different email than the one you were invited with.')
+          }
+
+          const user = yield* Effect.tryPromise({
+            try: () => User.findBy('email', inviteeEmail),
+            catch: errorConversion.toUnknownError('Failed to fetch user by email'),
+          })
+
+          if (!user) {
+            throw new Error('User not found')
+          }
+
+          yield* Effect.tryPromise({
+            try: () => user.related('workspaces').attach({
+              [workspace.id]: {
+                invited_by: sender.id,
+                joined_at: new Date(),
+                status: WorkspaceMemberStatus.ACTIVE,
+                is_active: false,
+              },
+            }),
+            catch: errorConversion.toUnknownError('Unexpected error occurred while adding user to workspace.'),
+          })
+
+          yield* Effect.tryPromise({
+            try: () => cache
+              .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+              .delete({ key: `${workspace.id}_${user.email}` }),
+            catch: errorConversion.toUnknownError('Unexpected error occurred while deleting invite token from cache.'),
+          })
+
           return {
-            action: 'signin',
-            message: 'User is already registered. Please sign in to join the workspace.',
-            data: {
+            mode: 'accept',
+            message: 'You have successfully joined the workspace.',
+            workspace: {
+              id: workspace.uid,
+              name: workspace.name,
+            },
+            user: {
+              id: user.uid,
               email: user.email,
-              workspace_name: workspace.name,
-              workspace_id: workspace.uid,
-              redirect_url: `${process.env.APP_URL}/auth/login`,
+              firstName: user.firstName,
             },
           }
-        } else {
+        } else if (payload.mode === 'login') {
+          const password = Redacted.value(payload.password)
+
+          const user = yield* Effect.tryPromise({
+            try: () => User.findBy('email', inviteeEmail),
+            catch: errorConversion.toUnknownError('Failed to fetch user by email'),
+          })
+
+          if (!user) {
+            throw new Error('User not found')
+          }
+
+          if (user.email !== inviteeEmail) {
+            throw new Error('Authentication failed')
+          }
+
+          const isUserAuthenticated = yield* Effect.tryPromise({
+            try: () => User.verifyCredentials(inviteeEmail, password),
+            catch: errorConversion.toUnknownError('Authentication failed'),
+          })
+
+          if (!isUserAuthenticated) {
+            throw new Error('Authentication failed')
+          }
+
+          yield* Effect.tryPromise({
+            try: () => user.related('workspaces').attach({
+              [workspace.id]: {
+                invited_by: sender.id,
+                joined_at: new Date(),
+                status: WorkspaceMemberStatus.ACTIVE,
+                is_active: false,
+              },
+            }),
+            catch: errorConversion.toUnknownError('Unexpected error occurred while adding user to workspace.'),
+          })
+
+          // yield* Effect.tryPromise({
+          //   try: () => cache
+          //     .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+          //     .delete({ key: `${workspace.id}_${user.email}` }),
+          //   catch: errorConversion.toUnknownError('Unexpected error occurred while deleting invite token from cache.'),
+          // })
+
           return {
-            action: 'signup',
-            message: 'Please complete your registration to join the workspace.',
-            data: {
+            mode: 'login',
+            message: 'You have successfully logged in and joined the workspace.',
+            workspace: {
+              id: workspace.uid,
+              name: workspace.name,
+            },
+            userInstance: user!,
+          }
+        } else if (payload.mode === 'register') {
+          const firstName = payload.first_name
+          const lastName = payload.last_name || ''
+          const password = Redacted.value(payload.password)
+
+          const userExists = yield* Effect.tryPromise({
+            try: () => User.findBy('email', cacheData.invitee_email),
+            catch: errorConversion.toUnknownError('Failed to check if user exists'),
+          })
+
+          if (userExists) {
+            throw new Error('User already exists with this email. Please login instead.')
+          }
+
+          const user = yield* Effect.tryPromise({
+            try: () => User.create({
+              email: cacheData.invitee_email,
+              firstName,
+              lastName,
+              password,
+              isVerified: true,
+              defaultWorkspaceId: workspace.id,
+              onboardingStatus: OnboardingStatus.COMPLETED,
+            }),
+            catch: errorConversion.toUnknownError('Failed to create user'),
+          })
+
+          yield* Effect.tryPromise({
+            try: () => user.related('workspaces').attach({
+              [workspace.id]: {
+                invited_by: sender.id,
+                joined_at: new Date(),
+                status: WorkspaceMemberStatus.ACTIVE,
+                is_active: false,
+              },
+            }),
+            catch: errorConversion.toUnknownError('Unexpected error occurred while adding user to workspace.'),
+          })
+
+          yield* Effect.tryPromise({
+            try: () => cache
+              .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+              .delete({ key: `${workspace.id}_${user.email}` }),
+            catch: errorConversion.toUnknownError('Unexpected error occurred while deleting invite token from cache.'),
+          })
+
+          return {
+            mode: 'register',
+            message: 'You have successfully registered and joined the workspace.',
+            workspace: {
+              id: workspace.uid,
+              name: workspace.name,
+            },
+            user: {
+              id: user.uid,
               email: user.email,
-              workspace_name: workspace.name,
-              workspace_id: workspace.uid,
-              inviter_id: cachedData.inviter_id,
-              needs_password: !hasPassword,
-              needs_first_name: !hasFirstName,
-              redirect_url: `${process.env.APP_URL}/auth/invited-user/?email=${encodeURIComponent(user.email || '')}`,
+              firstName: user.firstName,
             },
           }
         }
+
+        throw new Error('Invalid mode')
+      })
+    }
+
+    function getInviteDetails(payload: ProcessedDataPayload<InviteDetailsPayload>) {
+      return Effect.gen(function* () {
+        const token = payload.token.value
+        const key = payload.token.key
+
+        const decodedDetails = yield* stringMixer.decode(token, key)
+
+        const cachedInvite = yield* Effect.tryPromise({
+          try: () => cache
+            .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+            .get({ key: decodedDetails[0] }),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving cached invite token.'),
+        })
+
+        if (!cachedInvite) {
+          throw new Error('Cached invite token not found.')
+        }
+
+        const cacheData = yield* pipe(
+          cachedInvite,
+          Schema.decodeUnknown(
+            Schema.Struct({
+              workspace_id: Schema.ULID,
+              sender_id: Schema.ULID,
+              invitee_email: Schema.String,
+              token: Schema.Struct({
+                value: Schema.String,
+                key: Schema.String,
+              }),
+            }),
+          ),
+          SchemaError.fromParseError('Unexpected error occurred while decoding cached invite token.'),
+        )
+
+        if (!cacheData) {
+          throw new Error('Cached invite token not found.')
+        }
+
+        const workspace = yield* Effect.tryPromise({
+          try: () => Workspace.findBy('uid', cacheData.workspace_id),
+          catch: errorConversion.toUnknownError('Failed to fetch workspace by ID.'),
+        })
+
+        if (!workspace) {
+          throw new Error('Workspace not found.')
+        }
+
+        const sender = yield* Effect.tryPromise({
+          try: () => User.findBy('uid', cacheData.sender_id),
+          catch: errorConversion.toUnknownError('Failed to fetch sender user.'),
+        })
+
+        if (!sender) {
+          throw new Error('Sender user not found.')
+        }
+
+        const invitee = yield* Effect.tryPromise({
+          try: () => User.findBy('email', cacheData.invitee_email),
+          catch: errorConversion.toUnknownError('Failed to fetch user by email.'),
+        })
+
+        console.log('Invite details:', {
+          workspaceId: cacheData.workspace_id,
+          senderId: cacheData.sender_id,
+          inviteeEmail: cacheData.invitee_email,
+          tokenValue: cacheData.token.value,
+          tokenKey: cacheData.token.key,
+        })
+
+        const responseData = {
+          workspace: {
+            id: workspace.uid,
+            name: workspace.name,
+            logo: workspace.logoUrl ? workspace.logoUrl : null,
+          },
+          sender: {
+            id: sender.uid,
+            email: sender.email,
+            firstName: sender.firstName,
+            lastName: sender.lastName ? sender.lastName : '',
+          },
+          invitee: invitee
+            ? {
+                status: true,
+                id: invitee.uid,
+                email: invitee.email,
+                firstName: invitee.firstName,
+                lastName: invitee.lastName ? invitee.lastName : '',
+              }
+            : {
+                status: false,
+              },
+
+        }
+
+        return responseData
       })
     }
 
     return {
       sendWorkspaceInviteEmail,
-      verifyInvite,
+      acceptInvite,
+      getInviteDetails,
     }
   }),
 }) {}

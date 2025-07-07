@@ -10,11 +10,11 @@
 |
 */
 
-process.env.NODE_ENV = 'test'
-
 import { Ignitor, prettyPrintError } from '@adonisjs/core'
 import { configure, processCLIArgs, run } from '@japa/runner'
 import 'reflect-metadata'
+
+process.env.NODE_ENV = 'test'
 
 /**
  * URL to the application root. AdonisJS need it to resolve

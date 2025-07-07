@@ -7,5 +7,5 @@ router.group(() => {
   router.post('/register', [AuthenticationController, 'register']).middleware(middleware.guest())
   router.post('/login', [AuthenticationController, 'authenticateWithCredentials']).middleware(middleware.guest())
   router.get('/me', [AuthenticationController, 'me']).middleware(middleware.auth())
-  router.post('/invited-user', [AuthenticationController, 'handleInvitedUser']).middleware(middleware.guest())
+  router.post('/invited-user', [AuthenticationController, 'handleInvitedUser'])
 }).prefix(`auth`)

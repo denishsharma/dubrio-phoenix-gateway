@@ -6,12 +6,14 @@ import HttpRequestService from '#core/http/services/http_request_service'
 import VineValidationService from '#core/validation/services/vine_validation_service'
 import Workspace from '#models/workspace_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
+import AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
+import InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
 import SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
 import InviteUserService from '#modules/workspace/services/invite_user_service'
 import WorkspaceService from '#modules/workspace/services/workspace_service'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import vine from '@vinejs/vine'
-import { Effect, pipe } from 'effect'
+import { Effect, Layer, pipe } from 'effect'
 
 export default class WorkspaceController {
   protected inviteUserService = new InviteUserService()
@@ -92,77 +94,78 @@ export default class WorkspaceController {
     )
   }
 
-  async verifyInvite(ctx: FrameworkHttpContext) {
+  async acceptInvite(ctx: FrameworkHttpContext) {
     const program = Effect.gen(function* () {
       const workspaceService = yield* WorkspaceService
 
-      // Extract token from URL params and key from query params
-      const token = ctx.params.token
-      const key = ctx.request.qs().k
+      const payload = yield* AcceptWorkspaceInvitePayload.fromRequest()
+      console.log('Accept Invite Payload:', payload)
 
-      // const payload = yield* VerifyInviteUserPayload.fromRequest(ctx.request as any)
+      const result = yield* workspaceService.acceptInvite(payload)
 
-      // console.warn('Invite verification payload:', payload)
+      if (result.mode === 'login' && result.userInstance) {
+        yield* Effect.tryPromise({
+          try: () => ctx.auth.use('web').login(result.userInstance),
+          catch: err => err,
+        })
+      }
 
-      const result = yield* workspaceService.verifyInvite({ token, k: key })
+      return ctx.response.status(200).json(result)
+    })
 
+    return await Effect.runPromise(
+      pipe(
+        program,
+        Effect.provide(
+          Layer.mergeAll(
+            HttpContext.provide(ctx),
+            HttpRequestService.Default,
+
+            VineValidationService.Default,
+            TypedEffectService.Default,
+            WorkspaceService.Default,
+            ErrorConversionService.Default,
+            StringMixerService.Default,
+          ),
+        ),
+        // Effect.catchAll(error =>
+        //   Effect.sync(() =>
+        //     ctx.response.internalServerError({
+        //       success: false,
+        //       message: error?.message ?? 'Unexpected error occurred',
+        //     }),
+        //   ),
+        // ),
+      ),
+    )
+  }
+
+  async getInviteDetails(ctx: FrameworkHttpContext) {
+    const program = Effect.gen(function* () {
+      const workspaceService = yield* WorkspaceService
+
+      const payload = yield* InviteDetailsPayload.fromRequest()
+
+      const result = yield* workspaceService.getInviteDetails(payload)
+
+      console.log('Invite Details Result:', result)
       return ctx.response.status(200).json(result)
     })
 
     return Effect.runPromise(
       pipe(
         program,
-        Effect.provide(WorkspaceService.Default),
-        Effect.provide(HttpContext.provide(ctx)),
-        Effect.provide(ErrorConversionService.Default),
-        Effect.provide(StringMixerService.Default),
-        Effect.provide(VineValidationService.Default),
-        Effect.provide(TypedEffectService.Default),
-        Effect.provide(HttpRequestService.Default),
-        Effect.catchAll(error =>
-          Effect.sync(() =>
-            ctx.response.internalServerError({
-              success: false,
-              message: error?.message ?? 'Unexpected error occurred',
-            }),
+        Effect.provide(
+          Layer.mergeAll(
+            WorkspaceService.Default,
+            HttpContext.provide(ctx),
+            VineValidationService.Default,
+            TypedEffectService.Default,
+            HttpContext.provide(ctx),
+            HttpRequestService.Default,
           ),
         ),
       ),
     )
-  }
-
-  async getSignupInviteData({ request, response }: FrameworkHttpContext) {
-    const { token, key } = request.params()
-
-    try {
-      const result = await this.inviteUserService.verifyNewUserInviteToken({
-        token,
-        key,
-      })
-
-      return response.ok({
-        message: 'Invite token verified successfully',
-        ...result,
-      })
-    } catch (error) {
-      console.error('Error verifying invite token:', error)
-      return response.badRequest({ message: 'Invalid or expired invitation' })
-    }
-  }
-
-  async completeNewUserSignup({ request, response }: FrameworkHttpContext) {
-    const { userUid, tempUserUid, workspaceUid } = request.body()
-
-    try {
-      const result = await this.inviteUserService.completeNewUserSignup(userUid, tempUserUid, workspaceUid)
-
-      return response.ok({
-        message: 'User signup completed and workspace membership activated',
-        ...result,
-      })
-    } catch (error) {
-      console.error('Error completing new user signup:', error)
-      return response.internalServerError({ message: 'Failed to complete user signup' })
-    }
   }
 }
