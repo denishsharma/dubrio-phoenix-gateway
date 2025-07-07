@@ -47,5 +47,5 @@ router.use([
 export const middleware = router.named({
   activeWorkspace: () => import('#middleware/active_workspace_middleware'),
   guest: () => import('#middleware/guest_middleware'),
-  auth: () => import('#middleware/auth_middleware'),
+  auth: () => import('#middleware/authentication_middleware'),
 })
