@@ -5,6 +5,11 @@ import ErrorCauseService from '#core/error/services/error_cause_service'
 import { defu } from 'defu'
 import { Effect, pipe, Schema } from 'effect'
 
+/**
+ * Error occurs when there is a error while parsing or stringifying JSON data.
+ *
+ * @category Internal Error
+ */
 export default class JsonError extends InternalError('json')({
   code: InternalErrorCode.I_JSON,
   schema: Schema.Struct({
@@ -13,15 +18,18 @@ export default class JsonError extends InternalError('json')({
   }),
 }) {
   /**
-   * Create a JSON error from an unknown error.
+   * Creates a new `JsonError` instance based on the unknown error
+   * as the root cause of the error.
    *
-   * @param on - The operation that caused the error.
-   * @param data - The data that was being processed.
-   * @param message - An optional error message.
+   * @param on - The operation that caused the error (parse or stringify).
+   * @param data - The data that caused the error.
+   * @param message - A human-readable message for the error.
    * @param options - Additional options for the error.
-   * @returns A function that takes an error and returns a JSON error.
    */
   static fromUnknownError(on: Schema.Schema.Encoded<InferInternalErrorSchema<JsonError>>['on'], data?: unknown, message?: string, options?: Omit<InternalErrorOptions, 'cause'>) {
+    /**
+     * @param error - The unknown error to convert.
+     */
     return (error: unknown) => Effect.runSync(
       pipe(
         Effect.gen(function* () {

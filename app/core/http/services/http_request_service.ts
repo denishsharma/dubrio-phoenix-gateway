@@ -3,6 +3,7 @@ import type { VineValidator } from '@vinejs/vine'
 import type { SchemaTypes } from '@vinejs/vine/types'
 import type { UnknownRecord } from 'type-fest'
 import HttpContext from '#core/http/contexts/http_context'
+import TelemetryService from '#core/telemetry/services/telemetry_service'
 import VineValidationService from '#core/validation/services/vine_validation_service'
 import { Effect, Option, pipe } from 'effect'
 import { defaultTo } from 'lodash-es'
@@ -19,9 +20,10 @@ export interface MergedRequestData extends UnknownRecord {
 }
 
 export default class HttpRequestService extends Effect.Service<HttpRequestService>()('@service/core/http/request', {
-  dependencies: [VineValidationService.Default],
+  dependencies: [VineValidationService.Default, TelemetryService.Default],
   effect: Effect.gen(function* () {
     const vineValidation = yield* VineValidationService
+    const telemetry = yield* TelemetryService
 
     const getCurrentRequestId = Effect.gen(function* () {
       const { context } = yield* HttpContext
@@ -45,7 +47,7 @@ export default class HttpRequestService extends Effect.Service<HttpRequestServic
             __qs: defaultTo(ctx.request.qs(), {}),
           } satisfies MergedRequestData as MergedRequestData),
         ),
-      )
+      ).pipe(telemetry.withTelemetrySpan('get_request_data'))
     })
 
     function validateRequestData<S extends SchemaTypes, M extends undefined | Record<string, any>>(
@@ -72,7 +74,7 @@ export default class HttpRequestService extends Effect.Service<HttpRequestServic
             },
           ),
         ),
-      ))
+      )).pipe(telemetry.withTelemetrySpan('validate_request_data_with_vine'))
     }
 
     return {

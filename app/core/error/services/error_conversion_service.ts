@@ -5,11 +5,12 @@ import { InternalErrorCode } from '#constants/internal_error_code'
 import { KIND_MARKER } from '#constants/proto_marker'
 import { ErrorKind } from '#core/error/constants/error_kind'
 import UnknownError from '#core/error/errors/unknown_error'
-import InternalServerException from '#core/error/exception/internal_server_exception'
+import InternalServerException from '#core/error/exceptions/internal_server_exception'
 import ErrorCauseService from '#core/error/services/error_cause_service'
 import ErrorValidationService from '#core/error/services/error_validation_service'
 import SchemaError from '#core/schema/errors/schema_error'
 import ValidationException from '#core/validation/exceptions/validation_exception'
+import RequestEntityTooLargeException from '#exceptions/request_entity_too_large_exception'
 import RouteNotFoundException from '#exceptions/route_not_found_exception'
 import { errors as appErrors } from '@adonisjs/core'
 import { Exception as FrameworkException } from '@adonisjs/core/exceptions'
@@ -142,6 +143,13 @@ export default class ErrorConversionService extends Effect.Service<ErrorConversi
         Match.when(errorValidation.isException, err => err),
         Match.when(Match.instanceOf(appErrors.E_ROUTE_NOT_FOUND), RouteNotFoundException.fromFrameworkException()),
         Match.when(Match.instanceOf(vineErrors.E_VALIDATION_ERROR), ValidationException.fromFrameworkException()),
+        Match.when(
+          Match.instanceOf(FrameworkException),
+          err => Match.value(err.code).pipe(
+            Match.when(Match.is('E_REQUEST_ENTITY_TOO_LARGE'), () => pipe(err, RequestEntityTooLargeException.fromFrameworkException())),
+            Match.orElse(() => undefined),
+          ),
+        ),
         Match.orElse(() => undefined),
       )
     }

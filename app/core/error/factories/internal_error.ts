@@ -1,5 +1,6 @@
 import type { InternalErrorCodeMetadata } from '#constants/internal_error_code'
 import type { Exception as FrameworkException } from '@adonisjs/core/exceptions'
+import type { Brand } from 'effect'
 import type { Draft } from 'mutative'
 import type { Spread } from 'type-fest'
 import { INTERNAL_ERROR_CODE_METADATA, InternalErrorCode } from '#constants/internal_error_code'
@@ -9,54 +10,32 @@ import { ErrorKind } from '#core/error/constants/error_kind'
 import { INTERNAL_ERROR_MARKER } from '#core/error/constants/error_marker'
 import is from '@adonisjs/core/helpers/is'
 import { defu } from 'defu'
-import { type Brand, Data, Effect, Match, Option, pipe, Schema } from 'effect'
+import { Data, Effect, Match, Option, pipe, Schema } from 'effect'
 import { defaultTo, get, has, omit } from 'lodash-es'
 import { create } from 'mutative'
 
 /**
- * Internal error options interface.
- * This interface defines the options that can be passed to the internal error factory.
- * It includes an optional error code and an optional cause.
+ * The options for customizing the internal error instance
+ * that is thrown when an internal error occurs.
  */
 export interface InternalErrorOptions {
-
   /**
-   * An optional error code that identifies the specific internal error.
-   * This code is used for logging and debugging purposes.
-   * It should be one of the predefined internal error codes.
-   * @see InternalErrorCode
+   * Unique error code for the error to be used in the error tracking system
+   * and for error categorization.
+   *
+   * @see {@link InternalErrorCode}
    */
   code?: InternalErrorCode;
 
   /**
-   * An optional cause that represents the original error that triggered the internal error.
-   * This can be used to provide additional context and information about the error.
+   * The original error that caused this internal error to be thrown.
+   *
+   * This is useful for debugging and logging purposes to understand the
+   * root cause of the error.
+   *
+   * @see {@link FrameworkException} for more information on the exception class.
    */
   cause?: Error | FrameworkException | InternalError<string, any, any>;
-}
-
-/**
- * Internal error internals interface.
- * This interface defines the internal structure of the internal error.
- * It includes an optional schema for additional arguments and instance types,
- * as well as a context object that contains encoded data.
- */
-interface InternalErrorInternals<A = never, I = never> {
-  /**
-   * An optional schema that defines the structure of additional arguments and instance types for the internal error.
-   * This can be used to validate and enforce the types of arguments passed to the error.
-   */
-  schema: Schema.Schema<A, I>;
-
-  /**
-   * An optional context object that contains encoded data related to the internal error.
-   * This can be used to store additional information about the error, such as its state or context.
-   */
-  context: {
-    data: {
-      encoded: I | undefined;
-    };
-  };
 }
 
 /**
@@ -112,39 +91,47 @@ interface InternalErrorInternals<A = never, I = never> {
 }
 
 /**
- * Internal error factory options interface.
- * This interface defines the options that can be passed to the internal error factory.
- * It includes an optional error code, metadata, and a schema for additional arguments and instance types.
+ * The options for customizing the factory function that creates
+ * the internal error class.
  */
 interface InternalErrorFactoryOptions<A = never, I = never> {
-
   /**
-   * An optional error code that identifies the specific internal error.
-   * This code is used for logging and debugging purposes.
-   * It should be one of the predefined internal error codes.
-   * @see InternalErrorCode
+   * Unique error code for the error to be used in the error tracking system
+   * and for error categorization.
+   *
+   * @see {@link InternalErrorCode}
    */
-  code?: InternalErrorCode;
+  code: InternalErrorCode;
 
   /**
-   * An optional metadata object that provides additional information about the internal error.
-   * This can include details such as the error's context, severity, and any other relevant information.
+   * The metadata for the error code that provides additional information
+   * about the internal error.
+   *
+   * Defaults to the metadata of the error code.
+   *
+   * @see {@link InternalErrorCodeMetadata} for more information on the metadata.
    */
-  metaData?: Partial<InternalErrorCodeMetadata>;
+  metadata?: Partial<InternalErrorCodeMetadata>;
 
   /**
-   * An optional schema that defines the structure of additional arguments and instance types for the internal error.
-   * This can be used to validate and enforce the types of arguments passed to the error.
+   * The schema for validating the context data of the internal error.
+   *
+   * This is useful for ensuring that the context data is in the expected
+   * format and contains the required fields.
+   *
+   * When not provided, the internal error will not accept any context data
+   * and will not validate it if provided forcibly.
+   *
+   * @see {@link Schema} for more information on the schema.
    */
   schema?: Schema.Schema<A, I>;
 }
 
 /**
- * The instance type of the internal error class that is created
- * using the internal error factory function.
+ * Base factory function for creating a base internal error class that extends
+ * the `Data.Error` class and provides additional functionality
+ * for handling internal errors in the application.
  */
-// export type InternalError<T extends string, A = never, I = never> = Brand.Branded<BaseInstance<T, A, I>, typeof INTERNAL_ERROR_MARKER>
-
 function base<T extends string, A = never, I = never>(tag: T, factoryOptions: InternalErrorFactoryOptions<A, I>) {
   class Factory extends Data.Error {
     static get [INTERNAL_ERROR_MARKER]() { return INTERNAL_ERROR_MARKER }
@@ -210,9 +197,6 @@ function base<T extends string, A = never, I = never>(tag: T, factoryOptions: In
     constructor(...args: InternalErrorConstructorParameters<I>) {
       super()
 
-      /**
-       * The constructor arguments for the internal error class.
-       */
       interface InternalErrorConstructorArguments {
         contextOrMessage: string | { data: I } | undefined;
         messageOrOptions: string | InternalErrorOptions | undefined;
@@ -224,8 +208,7 @@ function base<T extends string, A = never, I = never>(tag: T, factoryOptions: In
        * for the internal error.
        */
       const resolvedArguments = Match.type<InternalErrorConstructorArguments>().pipe(
-        Match
-          .withReturnType<{
+        Match.withReturnType<{
           context: { data: I | undefined };
           code: InternalErrorCode;
           metadata: InternalErrorCodeMetadata;
@@ -234,20 +217,16 @@ function base<T extends string, A = never, I = never>(tag: T, factoryOptions: In
         Match.when(
           ({ contextOrMessage }) => is.object(contextOrMessage),
           ({ contextOrMessage, messageOrOptions, options }) => {
-            const code = defaultTo(
-              defaultTo(options?.code, factoryOptions.code),
-              InternalErrorCode.I_UNKNOWN,
-            )
+            const code = defaultTo(options?.code, factoryOptions.code)
             return {
               code,
               cause: options?.cause,
-
               context: { data: (contextOrMessage as { data: I }).data },
               metadata: defu(
                 {
                   message: messageOrOptions as string,
                 } as InternalErrorCodeMetadata,
-                factoryOptions.metaData,
+                factoryOptions.metadata,
                 defaultTo(get(INTERNAL_ERROR_CODE_METADATA, code), INTERNAL_ERROR_CODE_METADATA[InternalErrorCode.I_UNKNOWN]),
               ),
             }
@@ -255,10 +234,7 @@ function base<T extends string, A = never, I = never>(tag: T, factoryOptions: In
         ),
         Match.orElse(
           ({ contextOrMessage, messageOrOptions }) => {
-            const code = defaultTo(
-              defaultTo((messageOrOptions as InternalErrorOptions | undefined)?.code, factoryOptions.code),
-              InternalErrorCode.I_UNKNOWN,
-            )
+            const code = defaultTo((messageOrOptions as InternalErrorOptions | undefined)?.code, factoryOptions.code)
             return {
               code,
               cause: (messageOrOptions as InternalErrorOptions | undefined)?.cause,
@@ -267,7 +243,7 @@ function base<T extends string, A = never, I = never>(tag: T, factoryOptions: In
                 {
                   message: contextOrMessage as string,
                 } as InternalErrorCodeMetadata,
-                factoryOptions.metaData,
+                factoryOptions.metadata,
                 defaultTo(get(INTERNAL_ERROR_CODE_METADATA, code), INTERNAL_ERROR_CODE_METADATA[InternalErrorCode.I_UNKNOWN]),
               ),
             }
@@ -371,20 +347,23 @@ function base<T extends string, A = never, I = never>(tag: T, factoryOptions: In
 }
 
 /**
- * Base function to create an internal error.
- * This function is a template that can be used to create an internal error with a specific message and options.
- * It uses a template string to define the error message and can accept additional arguments and instance types.
- * @template T - The template string type for the error message.
- * @template A - The type of additional arguments that can be passed to the error.
- * @template I - The type of instance that can be created from the error.
- * @returns A function that takes a template string and returns an instance of the internal error.
+ * Instance type of the base internal error class that is created
+ * using the factory function.
  */
 type BaseInstance<T extends string, A = never, I = never> = InstanceType<ReturnType<typeof base<T, A, I>>>
 
 /**
- * Creates a new internal error class with the specified tag.
- * @param tag - The tag to associate with the internal error class.
- * @returns A function that takes factory options and returns the internal error class.
+ * Factory function for creating an internal error class with the unique
+ * tag and options provided to the factory function.
+ *
+ * Tag is prefixed with `@error/internal/` to ensure uniqueness and
+ * to avoid conflicts with other error classes in the application.
+ *
+ * Purpose of this function is to create a base internal error class
+ * that can be extended to create specific internal error classes
+ * for different use cases in the application.
+ *
+ * @see {@link InternalErrorFactoryOptions} for more information on the options.
  */
 export function InternalError<T extends string>(tag: T) {
   type RT = `@error/internal/${T}`
@@ -392,6 +371,14 @@ export function InternalError<T extends string>(tag: T) {
 
   return <A = never, I = never>(factoryOptions: InternalErrorFactoryOptions<A, I>) => {
     class BaseInternalError extends base<RT, A, I>(resolvedTag, factoryOptions) {
+      /**
+       * Makes a new instance of the internal error class with the options
+       * provided to the internal error class.
+       *
+       * @param options - The options for creating the internal error instance.
+       *
+       * @see {@link InternalErrorMakeOptions} for more information on the options.
+       */
       static make<E extends BaseInternalError>(this: new(...args: InternalErrorConstructorParameters<I>) => E, options: InternalErrorMakeOptions<I>) {
         if (has(options, 'context') && has(options.context, 'data')) {
           const args = [
@@ -401,12 +388,13 @@ export function InternalError<T extends string>(tag: T) {
           ] as unknown as InternalErrorConstructorParameters<I>
           return new this(...args)
         }
+
         const args = [options.message, omit(options, 'message')] as unknown as InternalErrorConstructorParameters<I>
         return new this(...args)
       }
     }
     ;(BaseInternalError.prototype as any).name = resolvedTag
-    ; (BaseInternalError as any).tag = resolvedTag
+    ;(BaseInternalError as any).__tag__ = resolvedTag
 
     return BaseInternalError as unknown as (new (...args: InternalErrorConstructorParameters<I>) => Brand.Branded<InstanceType<typeof BaseInternalError>, typeof INTERNAL_ERROR_MARKER>) & { make: typeof BaseInternalError['make']; readonly [INTERNAL_ERROR_MARKER]: typeof INTERNAL_ERROR_MARKER }
   }

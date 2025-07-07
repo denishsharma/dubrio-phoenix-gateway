@@ -33,15 +33,15 @@ export type BooleanColumnOptions<N extends boolean>
   )
 
 export default function BooleanColumn<N extends boolean = false>(options: () => BaseColumnOptions<BooleanColumnOptions<N>>) {
-  return LucidColumn('boolean')<boolean | null, number | null>()({
+  return LucidColumn('boolean')<boolean | null | undefined, number | null | undefined>()({
     options: options(),
     constructor: (args) => {
       const [nullable, resolveDefault] = [defaultTo(args.nullable, false), args.default]
 
-      if (!nullable && is.nullOrUndefined(resolveDefault)) {
+      if (!nullable && is.null(resolveDefault)) {
         throw new LucidColumnValueError(
           { data: { reason: 'required_default' } },
-          `LucidColumn<${args.tag}> The default value for the boolean column is required when the column is not nullable.`,
+          `LucidColumn<${args.tag}> [${args.columnName}] The default value for the boolean column is required when the column is not nullable.`,
         )
       }
 
@@ -51,28 +51,32 @@ export default function BooleanColumn<N extends boolean = false>(options: () => 
       }
     },
     consume: (args) => {
-      if (!is.number(args.value) && !is.nullOrUndefined(args.value)) {
+      if (is.undefined(args.value)) { return undefined }
+
+      if (!is.number(args.value) && !is.null(args.value)) {
         throw new LucidColumnValueError(
           { data: { reason: 'invalid_consume', attribute: args.attribute, model: Object.getPrototypeOf(args.model).name, value: args.value } },
-          `LucidColumn<${args.options.tag}> The value for the boolean column is invalid. Expected a number or null, but received ${typeof args.value}.`,
+          `LucidColumn<${args.options.tag}> [${args.options.columnName}] The value for the boolean column is invalid. Expected a number or null, but received ${typeof args.value}.`,
         )
       }
 
-      return is.nullOrUndefined(args.value)
+      return is.null(args.value)
         ? args.options.default()
         : args.value === 1
     },
     prepare: (args) => {
-      if (!is.boolean(args.value) && !is.nullOrUndefined(args.value)) {
+      if (is.undefined(args.value)) { return undefined }
+
+      if (!is.boolean(args.value) && !is.null(args.value)) {
         throw new LucidColumnValueError(
           { data: { reason: 'invalid_prepare', attribute: args.attribute, model: Object.getPrototypeOf(args.model).name, value: args.value } },
-          `LucidColumn<${args.options.tag}> The value for the boolean column is invalid. Expected a boolean or null, but received ${typeof args.value}.`,
+          `LucidColumn<${args.options.tag}> [${args.options.columnName}] The value for the boolean column is invalid. Expected a boolean or null, but received ${typeof args.value}.`,
         )
       }
 
       return args.options.nullable
-        ? is.nullOrUndefined(args.value)
-          ? is.nullOrUndefined(args.options.default())
+        ? is.null(args.value)
+          ? is.null(args.options.default())
             ? null
             : args.options.default()
               ? 1
@@ -80,7 +84,7 @@ export default function BooleanColumn<N extends boolean = false>(options: () => 
           : args.value
             ? 1
             : 0
-        : is.nullOrUndefined(args.value)
+        : is.null(args.value)
           ? args.options.default()
             ? 1
             : 0

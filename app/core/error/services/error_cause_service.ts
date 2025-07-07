@@ -1,8 +1,8 @@
+import ErrorValidationService from '#core/error/services/error_validation_service'
 import { Exception as FrameworkException } from '@adonisjs/core/exceptions'
 import is from '@adonisjs/core/helpers/is'
 import { Effect, Match } from 'effect'
 import { defaultTo } from 'lodash-es'
-import ErrorValidationService from './error_validation_service.js'
 
 export default class ErrorCauseService extends Effect.Service<ErrorCauseService>()('@service/core/error/cause', {
   dependencies: [ErrorValidationService.Default],

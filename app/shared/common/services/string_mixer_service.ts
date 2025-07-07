@@ -1,4 +1,5 @@
-import { Array, Effect, pipe, Ref } from 'effect'
+import StringMixerError from '#shared/common/errors/string_mixer_error'
+import { Array, Effect, Inspectable, pipe, Ref } from 'effect'
 
 export default class StringMixerService extends Effect.Service<StringMixerService>()('@service/shared/string_mixer', {
   effect: Effect.gen(function* () {
@@ -125,7 +126,13 @@ export default class StringMixerService extends Effect.Service<StringMixerServic
           value: result,
           key,
         }
-      })
+      }).pipe(
+        Effect.catchAllDefect(defect => new StringMixerError(
+          { data: { mode: 'encode', values } },
+          undefined,
+          { cause: defect instanceof Error ? defect : new Error(Inspectable.toStringUnknown(defect), { cause: defect }) },
+        )),
+      )
     }
 
     function decode(value: string, key: string) {
@@ -166,7 +173,13 @@ export default class StringMixerService extends Effect.Service<StringMixerServic
         }
 
         return output.map(chars => chars.join(''))
-      })
+      }).pipe(
+        Effect.catchAllDefect(defect => new StringMixerError(
+          { data: { mode: 'decode', value, key } },
+          undefined,
+          { cause: defect instanceof Error ? defect : new Error(Inspectable.toStringUnknown(defect), { cause: defect }) },
+        )),
+      )
     }
 
     return {

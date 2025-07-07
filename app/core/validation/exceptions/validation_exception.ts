@@ -17,10 +17,16 @@ export default class ValidationException extends Exception('validation')({
   schema: Schema.Struct({
     issues: Schema.ArrayEnsure(
       Schema.Struct({
-        field: Schema.String,
+        code: Schema.Literal('custom'),
+        path: Schema.Array(Schema.String),
         message: Schema.String,
-        rule: Schema.String,
-        meta: Schema.optionalWith(Schema.Object, { nullable: true }),
+        params: Schema.Struct({
+          rule: Schema.String,
+          field: Schema.Struct({
+            name: Schema.String,
+          }),
+          meta: Schema.optionalWith(Schema.Object, { nullable: true }),
+        }),
       }),
     ),
   }),

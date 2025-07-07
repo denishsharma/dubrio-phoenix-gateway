@@ -6,6 +6,11 @@ export const EXCEPTION_CODE = Enum({
   E_VALIDATION: 'E_VALIDATION',
   E_INTERNAL_SERVER: 'E_INTERNAL_SERVER',
 
+  E_RESOURCE_NOT_FOUND: 'E_RESOURCE_NOT_FOUND',
+  E_RESOURCE_ALREADY_EXISTS: 'E_RESOURCE_ALREADY_EXISTS',
+
+  E_REQUEST_ENTITY_TOO_LARGE: 'E_REQUEST_ENTITY_TOO_LARGE',
+
   E_INVALID_CREDENTIALS: 'E_INVALID_CREDENTIALS',
   E_UNAUTHORIZED: 'E_UNAUTHORIZED',
   E_NOT_GUEST_USER: 'E_NOT_GUEST_USER',
@@ -30,6 +35,15 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   },
   [ExceptionCode.E_VALIDATION]: {
     message: 'Validation failed for the request while processing the request payload.',
+  },
+  [ExceptionCode.E_RESOURCE_NOT_FOUND]: {
+    message: 'The requested resource you are looking for could not be found.',
+  },
+  [ExceptionCode.E_RESOURCE_ALREADY_EXISTS]: {
+    message: 'The resource you are trying to create already exists.',
+  },
+  [ExceptionCode.E_REQUEST_ENTITY_TOO_LARGE]: {
+    message: 'The request payload is too large and exceeds the maximum allowed size.',
   },
   [ExceptionCode.E_INVALID_CREDENTIALS]: {
     message: 'The credentials you provided are invalid and cannot be used to authenticate you.',

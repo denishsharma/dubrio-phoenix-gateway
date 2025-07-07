@@ -42,6 +42,13 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   /*
   |----------------------------------------------------------
+  | Variables for configuring the application
+  |----------------------------------------------------------
+  */
+  FRONTEND_WEB_URL: Env.schema.string(),
+
+  /*
+  |----------------------------------------------------------
   | Variables for configuring the mail package
   |----------------------------------------------------------
   */
@@ -49,6 +56,14 @@ export default await Env.create(new URL('../', import.meta.url), {
   SMTP_PORT: Env.schema.string(),
   SMTP_USERNAME: Env.schema.string.optional(),
   SMTP_PASSWORD: Env.schema.string.optional(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for OpenTelemetry Configuration
+  |----------------------------------------------------------
+  */
+  OTEL_APPLICATION_SERVICE_NAME: Env.schema.string(),
+  OTEL_APPLICATION_SERVICE_VERSION: Env.schema.string(),
 
   /*
   |----------------------------------------------------------

@@ -13,7 +13,8 @@ import { EXCEPTION_MARKER } from '#core/error/constants/error_marker'
 import is from '@adonisjs/core/helpers/is'
 import { defu } from 'defu'
 import { Data, Effect, Match, Option, pipe, Schema } from 'effect'
-import { create, defaultTo, get, has, omit } from 'lodash-es'
+import { defaultTo, get, has, omit } from 'lodash-es'
+import { create } from 'mutative'
 
 /**
  * The options for customizing the exception instance
@@ -49,22 +50,25 @@ export interface ExceptionOptions {
   cause?: Error | FrameworkException | InternalError<string, any, any>;
 }
 
+/**
+ * The options for creating an exception instance via
+ * the static `make` method of the `Exception` class.
+ */
 export type ExceptionMakeOptions<I = never> = Spread<
   & ExceptionOptions
   & {
-  /**
-   * Additional message to be included in the exception.
-   * This can be used to provide more context about the error.
-   */
+    /**
+     * A human-readable message that describes the exception.
+     */
     message?: string;
   },
   [I] extends [never]
     ? object
     : {
-        /**
-         * The context in which the exception occurred.
-         * This can be used to provide more information about the error.
-         */
+      /**
+       * The additional context data that is associated with the exception
+       * to provide more information about the error.
+       */
         context: {
           data: I;
         };
@@ -72,42 +76,26 @@ export type ExceptionMakeOptions<I = never> = Spread<
 >
 
 /**
- * The constructor parameters for the Exception class.
- * This is used to create an instance of the Exception class.
- * It can either take a message and options or a context with data,
- * a message, and options.
+ * The constructor parameters for creating an exception instance.
+ * via the constructor of the `Exception` class.
  */
 export type ExceptionConstructorParameters<I = never> = [I] extends [never]
   ? [message?: string, options?: ExceptionOptions]
   : [context: { data: I }, message?: string, options?: ExceptionOptions]
 
 /**
- * The internal structure of the exception.
- * This is used to define the schema and context of the exception.
- * It includes the schema for the exception data and the context
- * in which the exception occurred.
+ * The internals of the exception class that are used to
+ * store the configuration and state of the exception.
  */
 interface ExceptionInternals<A = never, I = never> {
   schema: Schema.Schema<A, I>;
   context: {
     data: {
-
       /**
-       * The data associated with the exception.
-       * This can be any type of data that is relevant to the exception.
-       * It is optional and can be undefined.
-       * @see {@link I} for more details on the data type.
-       * @example
-       * ```ts
-       * {
-       userId: '12345',
-       message: 'User not found',
-       additionalInfo: {
-         timestamp: '2023-10-01T12:00:00Z',
-         requestId: 'abc-123',
-       },
-       }
-       ```
+       * The encoded context data that is associated with the exception
+       * to provide more information about the error.
+       *
+       * To be used when decoding the context data with the schema.
        */
       encoded: I | undefined;
     };
@@ -155,6 +143,11 @@ interface ExceptionFactoryOptions<A = never, I = never> {
   schema?: Schema.Schema<A, I>;
 }
 
+/**
+ * Base factory function for creating a base exception class that extends
+ * the `Data.Error` class and provides additional functionality for handling
+ * exceptions in the application.
+ */
 function base<T extends string, A = never, I = never>(tag: T, factoryOptions: ExceptionFactoryOptions<A, I>) {
   class Factory extends Data.Error {
     static get [EXCEPTION_MARKER]() { return EXCEPTION_MARKER }
@@ -171,6 +164,7 @@ function base<T extends string, A = never, I = never>(tag: T, factoryOptions: Ex
      * @see {@link StatusCodes} for more details on the status codes.
      */
     readonly status: StatusCodes
+
     /**
      * Unique exception code for the exception to be used in the
      * error response and tracking systems to identify the exception
@@ -391,14 +385,13 @@ function base<T extends string, A = never, I = never>(tag: T, factoryOptions: Ex
 type BaseInstance<T extends string, A = never, I = never> = InstanceType<ReturnType<typeof base<T, A, I>>>
 
 /**
- * Creates a new exception class with the specified tag and factory options.
+ * Factory function for creating a exception class with the unique tag
+ * and the options provided to the factory function.
  *
- * @param tag - The unique tag for the exception class.
- * @param factoryOptions - The options to customize the exception class.
+ * Tag is prefixed with `@error/exception/` to ensure uniqueness and to
+ * avoid conflicts with other exception classes in the application.
  *
- * @returns A new exception class that extends the base exception class.
- *
- * @see {@link ExceptionFactoryOptions} for more information on the factory options.
+ * @see {@link ExceptionFactoryOptions} for more information on the options.
  */
 export function Exception<T extends string>(tag: T) {
   type RT = `@error/exception/${T}`

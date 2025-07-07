@@ -61,6 +61,7 @@ export default defineConfig({
     () => import('@adonisjs/redis/redis_provider'),
     () => import('#providers/iam_provider'),
     () => import('#providers/workspace_provider'),
+    () => import('#providers/app_provider'),
   ],
 
   /*
@@ -71,7 +72,11 @@ export default defineConfig({
   | List of modules to import before starting the application.
   |
   */
-  preloads: [() => import('#start/routes'), () => import('#start/kernel')],
+  preloads: [
+    () => import('#start/telemetry'),
+    () => import('#start/routes'),
+    () => import('#start/kernel'),
+  ],
 
   /*
   |--------------------------------------------------------------------------

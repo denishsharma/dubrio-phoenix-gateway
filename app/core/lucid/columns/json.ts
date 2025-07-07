@@ -36,12 +36,12 @@ export type JsonColumnOptions<N extends boolean>
   )
 
 export default function JsonColumn<N extends boolean = false>(options: () => BaseColumnOptions<JsonColumnOptions<N>>) {
-  return LucidColumn('json')<Jsonifiable | null, string | null>()({
+  return LucidColumn('json')<Jsonifiable | null | undefined, string | null | undefined>()({
     options: options(),
     constructor: (args) => {
       const [nullable, resolveDefault] = [defaultTo(args.nullable, false), args.default]
 
-      if (!nullable && is.nullOrUndefined(resolveDefault)) {
+      if (!nullable && is.null(resolveDefault)) {
         throw new LucidColumnValueError(
           { data: { reason: 'required_default' } },
           `LucidColumn<${args.tag}> The default value for the json column is required when the column is not nullable.`,
@@ -57,21 +57,23 @@ export default function JsonColumn<N extends boolean = false>(options: () => Bas
       Effect.gen(function* () {
         const json = yield* JsonService
 
-        return is.nullOrUndefined(args.value)
+        if (is.undefined(args.value)) { return undefined }
+
+        return is.null(args.value)
           ? args.options.default()
           : is.string(args.value)
             ? yield* json.parse<Jsonifiable>()(args.value).pipe(
               Effect.catchTag('@error/internal/json', error => new LucidColumnValueError(
                 { data: { reason: 'invalid_consume', attribute: args.attribute, model: Object.getPrototypeOf(args.model).name, value: args.value } },
-                `LucidColumn<${args.options.tag}> The value for the json column is invalid. Expected a jsonifiable string or null, but received ${typeof args.value}.`,
+                `LucidColumn<${args.options.tag}> [${args.options.columnName}] The value for the json column is invalid. Expected a jsonifiable string or null, but received ${typeof args.value}.`,
                 { cause: defaultTo(error.cause, error) },
               )),
             )
-            : is.plainObject(args.value)
+            : json.isJsonifiable(args.value)
               ? args.value
               : yield* new LucidColumnValueError(
                 { data: { reason: 'invalid_consume', attribute: args.attribute, model: Object.getPrototypeOf(args.model).name, value: args.value } },
-                `LucidColumn<${args.options.tag}> The value for the json column is invalid. Expected a jsonifiable string or null, but received ${typeof args.value}.`,
+                `LucidColumn<${args.options.tag}> [${args.options.columnName}] The value for the json column is invalid. Expected a jsonifiable string or null, but received ${typeof args.value}.`,
               )
       }),
       Effect.provide(JsonService.Default),
@@ -80,17 +82,19 @@ export default function JsonColumn<N extends boolean = false>(options: () => Bas
       Effect.gen(function* () {
         const json = yield* JsonService
 
-        if (!is.nullOrUndefined(args.value) && !is.plainObject(args.value)) {
+        if (is.undefined(args.value)) { return undefined }
+
+        if (!is.null(args.value) && !json.isJsonifiable(args.value)) {
           return yield* new LucidColumnValueError(
             { data: { reason: 'invalid_prepare', attribute: args.attribute, model: Object.getPrototypeOf(args.model).name, value: args.value } },
-            `LucidColumn<${args.options.tag}> The value for the json column is invalid. Expected a jsonifiable plain object or null, but received ${typeof args.value}.`,
+            `LucidColumn<${args.options.tag}> [${args.options.columnName}] The value for the json column is invalid. Expected a jsonifiable plain object or null, but received ${typeof args.value}.`,
           )
         }
 
         return yield* json.stringify()(Inspectable.toJSON(args.value) as Jsonifiable).pipe(
           Effect.catchTag('@error/internal/json', error => new LucidColumnValueError(
             { data: { reason: 'invalid_prepare', attribute: args.attribute, model: Object.getPrototypeOf(args.model).name, value: args.value } },
-            `LucidColumn<${args.options.tag}> The value for the json column is invalid. Expected a jsonifiable plain object or null, but received ${typeof args.value}.`,
+            `LucidColumn<${args.options.tag}> [${args.options.columnName}] The value for the json column is invalid. Expected a jsonifiable plain object or null, but received ${typeof args.value}.`,
             { cause: defaultTo(error.cause, error) },
           )),
         )

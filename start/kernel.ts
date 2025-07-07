@@ -33,6 +33,8 @@ server.use([
  * requests with a registered route.
  */
 router.use([
+  () => import('#middleware/telemetry_middleware'),
+  () => import('#middleware/response_wrapper_middleware'),
   () => import('@adonisjs/core/bodyparser_middleware'),
   () => import('@adonisjs/auth/initialize_auth_middleware'),
   () => import('@adonisjs/session/session_middleware'),
