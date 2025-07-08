@@ -14,6 +14,10 @@ export const EXCEPTION_CODE = Enum({
   E_INVALID_CREDENTIALS: 'E_INVALID_CREDENTIALS',
   E_UNAUTHORIZED: 'E_UNAUTHORIZED',
   E_NOT_GUEST_USER: 'E_NOT_GUEST_USER',
+
+  E_ACCOUNT_ALREADY_VERIFIED: 'E_ACCOUNT_ALREADY_VERIFIED',
+  E_ACCOUNT_VERIFICATION_REQUIRED: 'E_ACCOUNT_VERIFICATION_REQUIRED',
+  E_INVALID_ACCOUNT_VERIFICATION_TOKEN: 'E_INVALID_ACCOUNT_VERIFICATION_TOKEN',
 })
 
 export type ExceptionCode = InferValue<typeof EXCEPTION_CODE>
@@ -53,5 +57,14 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   },
   [ExceptionCode.E_NOT_GUEST_USER]: {
     message: 'You are already authenticated. Requested action or resource is only available for guest users.',
+  },
+  [ExceptionCode.E_ACCOUNT_ALREADY_VERIFIED]: {
+    message: 'This email address is already verified. Please use a different email address to proceed.',
+  },
+  [ExceptionCode.E_ACCOUNT_VERIFICATION_REQUIRED]: {
+    message: 'Your account needs to be verified before you can access this resource or perform the requested action.',
+  },
+  [ExceptionCode.E_INVALID_ACCOUNT_VERIFICATION_TOKEN]: {
+    message: 'This account verification link is either expired or invalid. Please request a new verification link to proceed.',
   },
 }

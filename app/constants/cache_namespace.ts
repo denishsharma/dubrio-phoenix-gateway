@@ -6,5 +6,5 @@ export const CACHE_NAMESPACE = Enum({
   WORKSPACE_INVITE_TOKEN: 'workspace_invite_token',
 })
 
-export type CacheNameSpace = InferValue<typeof CACHE_NAMESPACE>
-export const CacheNameSpace = CACHE_NAMESPACE.accessor
+export type CacheNamespace = InferValue<typeof CACHE_NAMESPACE>
+export const CacheNamespace = CACHE_NAMESPACE.accessor

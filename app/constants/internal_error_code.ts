@@ -5,6 +5,7 @@ export const INTERNAL_ERROR_CODE = Enum({
   I_UNKNOWN: 'I_UNKNOWN',
   I_SCHEMA: 'I_SCHEMA',
   I_JSON: 'I_JSON',
+  I_NO_SUCH_ELEMENT: 'I_NO_SUCH_ELEMENT',
 
   I_UNEXPECTED_RUNTIME_EXIT_RESULT: 'I_UNEXPECTED_RUNTIME_EXIT_RESULT',
 
@@ -25,12 +26,6 @@ export const INTERNAL_ERROR_CODE = Enum({
   I_STRING_MIXER: 'I_STRING_MIXER',
 })
 
-//* *
-// Internal error codes that are used to identify specific internal errors.
-// These codes are used for logging and debugging purposes.
-// They are not meant to be exposed to the end user.
-// Each code should be unique and descriptive enough to identify the error.
-// */
 export type InternalErrorCode = InferValue<typeof INTERNAL_ERROR_CODE>
 export const InternalErrorCode = INTERNAL_ERROR_CODE.accessor
 
@@ -41,6 +36,9 @@ export interface InternalErrorCodeMetadata {
   message: string;
 }
 
+/**
+ * A map of internal error codes to their metadata.
+ */
 export const INTERNAL_ERROR_CODE_METADATA: Record<InternalErrorCode, InternalErrorCodeMetadata> = {
   [InternalErrorCode.I_UNKNOWN]: {
     message: 'An unknown error that was not expected occurred and not able to be handled.',
@@ -50,6 +48,9 @@ export const INTERNAL_ERROR_CODE_METADATA: Record<InternalErrorCode, InternalErr
   },
   [InternalErrorCode.I_JSON]: {
     message: 'Unexpected error occurred while parsing JSON data.',
+  },
+  [InternalErrorCode.I_NO_SUCH_ELEMENT]: {
+    message: 'The element that is being accessed does not exist in the data structure.',
   },
   [InternalErrorCode.I_UNEXPECTED_RUNTIME_EXIT_RESULT]: {
     message: 'Unexpected runtime exit result returned from the application runtime and not able to be handled.',

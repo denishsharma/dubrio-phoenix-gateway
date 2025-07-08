@@ -1,9 +1,12 @@
+import type { AccessToken } from '@adonisjs/auth/access_tokens'
 import type { BelongsTo, ManyToMany } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
+import type { CamelCasedProperties, SnakeCasedProperties } from 'type-fest'
 import TypedEffectService from '#core/effect/services/typed_effect_service'
 import BooleanColumn from '#core/lucid/columns/boolean'
 import EnumColumn from '#core/lucid/columns/enum'
 import LucidModelRelationshipError from '#core/lucid/errors/lucid_model_relationship_error'
+import LucidUtilityService from '#core/lucid/services/lucid_utility_service'
 import UsingLucidColumn from '#core/lucid/utils/using_lucid_column'
 import Workspace from '#models/workspace_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
@@ -16,21 +19,15 @@ import { BaseModel, beforeCreate, belongsTo, column, manyToMany } from '@adonisj
 import { SoftDeletes } from 'adonis-lucid-soft-deletes'
 import { Effect, pipe } from 'effect'
 import { defaultTo } from 'lodash-es'
-import { ulid } from 'ulid'
 
 const AuthFinder = withAuthFinder(() => hash.use('scrypt'), {
-  uids: ['email'],
+  uids: ['email', 'uid'],
   passwordColumnName: 'password',
 })
 
 export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
-  static accessTokens = DbAccessTokensProvider.forModel(User, {
-    expiresIn: '30 days',
-    prefix: 'oat_',
-    table: 'auth_access_tokens',
-    type: 'auth_token',
-    tokenSecretLength: 40,
-  })
+  static accessTokens = DbAccessTokensProvider.forModel(User)
+  public currentAccessToken?: AccessToken
 
   @column({ isPrimary: true, serializeAs: null })
   declare id: number
@@ -51,7 +48,7 @@ export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
   declare password: string | null
 
   @UsingLucidColumn(BooleanColumn(() => ({ default: () => false })))
-  declare isVerified: boolean
+  declare isAccountVerified: boolean
 
   @UsingLucidColumn(EnumColumn(() => ({ enum: OnboardingStatus, default: () => OnboardingStatus.NOT_STARTED })))
   declare onboardingStatus: OnboardingStatus
@@ -64,6 +61,10 @@ export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
+
+  // ---------------------------
+  // Relationships
+  // ---------------------------
 
   @manyToMany(() => Workspace, {
     pivotTable: 'workspace_members',
@@ -142,8 +143,48 @@ export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
     }(this)
   }
 
+  // ---------------------------
+  // Hooks
+  // ---------------------------
+
   @beforeCreate()
-  static assignUniqueIdentifier(user: User) {
-    user.uid = defaultTo(user.uid, ulid())
+  static assignIdentifier(user: User) {
+    Effect.runSync(
+      Effect.gen(function* () {
+        const lucidUtility = yield* LucidUtilityService
+        user.uid = defaultTo(user.uid, yield* lucidUtility.generateIdentifier)
+      }).pipe(Effect.provide(LucidUtilityService.Default)),
+    )
   }
 }
+
+/**
+ * Type for the fields available in the User model.
+ *
+ * This is used to define the fields that are available
+ * in the User model and to ensure that the
+ * fields are correctly typed.
+ */
+export type UserModelFields = CamelCasedProperties<{
+  id: User['id'];
+  uid: User['uid'];
+  firstName: User['firstName'];
+  lastName: User['lastName'];
+  email: User['email'];
+  password: User['password'];
+  isAccountVerified: User['isAccountVerified'];
+  onboardingStatus: User['onboardingStatus'];
+  defaultWorkspaceId: User['defaultWorkspaceId'];
+  createdAt: User['createdAt'];
+  updatedAt: User['updatedAt'];
+  deletedAt: User['deletedAt'];
+}>
+
+/**
+ * Type for mapping the fields of the User model to snake_case
+ * helping with the database column names.
+ *
+ * This is used to ensure that the fields are correctly
+ * mapped to the database column names
+ */
+export type UserTableColumns = SnakeCasedProperties<UserModelFields>

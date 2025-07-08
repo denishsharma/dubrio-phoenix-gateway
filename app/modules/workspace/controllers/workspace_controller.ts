@@ -9,15 +9,12 @@ import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
 import InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
 import SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
-import InviteUserService from '#modules/workspace/services/invite_user_service'
 import WorkspaceService from '#modules/workspace/services/workspace_service'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import vine from '@vinejs/vine'
 import { Effect, Layer, pipe } from 'effect'
 
 export default class WorkspaceController {
-  protected inviteUserService = new InviteUserService()
-
   async createWorkspace({ auth, request, response }: FrameworkHttpContext) {
     // Since auth middleware is applied, user will always be present
     const user = await auth.use('web').user!

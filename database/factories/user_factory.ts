@@ -21,7 +21,7 @@ export const UserFactory = factory
       lastName,
       email,
       password: 'password',
-      isVerified: false,
+      isAccountVerified: false,
       onboardingStatus: OnboardingStatus.NOT_STARTED,
     }
   })

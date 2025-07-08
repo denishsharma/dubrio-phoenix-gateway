@@ -21,6 +21,7 @@ import { CORE_QUEUE_JOB_MODULE_LAYER } from '#core/queue_job/queue_job_module'
 import { CORE_SCHEMA_MODULE_LAYER } from '#core/schema/schema_module'
 import { CORE_TELEMETRY_MODULE_LAYER } from '#core/telemetry/telemetry_module'
 import { CORE_VALIDATION_MODULE_LAYER } from '#core/validation/validation_module'
+import { IDENTITY_ACCESS_MANAGEMENT_MODULE_LAYER } from '#modules/iam/iam_module'
 import { SHARED_COMMON_MODULE_LAYER } from '#shared/common/common_module'
 import { Layer, ManagedRuntime } from 'effect'
 
@@ -43,6 +44,8 @@ export const APPLICATION_RUNTIME_DEPENDENCIES_LAYER = Layer.mergeAll(
   CORE_VALIDATION_MODULE_LAYER,
 
   SHARED_COMMON_MODULE_LAYER,
+
+  IDENTITY_ACCESS_MANAGEMENT_MODULE_LAYER,
 )
 
 /**

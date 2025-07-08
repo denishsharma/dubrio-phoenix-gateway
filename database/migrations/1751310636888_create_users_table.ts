@@ -14,8 +14,9 @@ export default class extends BaseSchema {
       table.string('email', 254).unique().nullable()
       table.string('password').nullable()
 
-      table.boolean('is_verified').defaultTo(false)
+      table.boolean('is_account_verified').defaultTo(false)
       table.string('onboarding_status').defaultTo(OnboardingStatus.NOT_STARTED)
+
       table.integer('default_workspace_id').unsigned().nullable().references('id').inTable('workspaces')
 
       table.timestamp('created_at')

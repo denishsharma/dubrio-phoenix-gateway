@@ -2,7 +2,7 @@ import type { ProcessedDataPayload } from '#core/data_payload/factories/data_pay
 import type AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
 import type InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
 import type SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
-import { CacheNameSpace } from '#constants/cache_namespace'
+import { CacheNamespace } from '#constants/cache_namespace'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import HttpContext from '#core/http/contexts/http_context'
 import SchemaError from '#core/schema/errors/schema_error'
@@ -74,14 +74,14 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
             )
 
             console.warn('Storing invite token:', {
-              namespace: CacheNameSpace.WORKSPACE_INVITE_TOKEN,
+              namespace: CacheNamespace.WORKSPACE_INVITE_TOKEN,
               key: `${workspace.uid}_${inviteeEmail}`,
               value: cachePayload,
             })
 
             yield* Effect.tryPromise({
               try: () => cache
-                .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+                .namespace(CacheNamespace.WORKSPACE_INVITE_TOKEN)
                 .set({
                   key: `${workspace.uid}_${inviteeEmail}`,
                   value: cachePayload,
@@ -117,7 +117,7 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
         const cachedInvite = yield* Effect.tryPromise({
           try: () => cache
-            .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+            .namespace(CacheNamespace.WORKSPACE_INVITE_TOKEN)
             .get({ key: `${workspaceId}_${inviteeEmail}` }),
           catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving cached invite token.'),
         })
@@ -194,7 +194,7 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
           yield* Effect.tryPromise({
             try: () => cache
-              .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+              .namespace(CacheNamespace.WORKSPACE_INVITE_TOKEN)
               .delete({ key: `${workspace.id}_${user.email}` }),
             catch: errorConversion.toUnknownError('Unexpected error occurred while deleting invite token from cache.'),
           })
@@ -251,7 +251,7 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
           // yield* Effect.tryPromise({
           //   try: () => cache
-          //     .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+          //     .namespace(CacheNamespace.WORKSPACE_INVITE_TOKEN)
           //     .delete({ key: `${workspace.id}_${user.email}` }),
           //   catch: errorConversion.toUnknownError('Unexpected error occurred while deleting invite token from cache.'),
           // })
@@ -285,7 +285,7 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
               firstName,
               lastName,
               password,
-              isVerified: true,
+              isAccountVerified: true,
               defaultWorkspaceId: workspace.id,
               onboardingStatus: OnboardingStatus.COMPLETED,
             }),
@@ -306,7 +306,7 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
           yield* Effect.tryPromise({
             try: () => cache
-              .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+              .namespace(CacheNamespace.WORKSPACE_INVITE_TOKEN)
               .delete({ key: `${workspace.id}_${user.email}` }),
             catch: errorConversion.toUnknownError('Unexpected error occurred while deleting invite token from cache.'),
           })
@@ -339,7 +339,7 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
         const cachedInvite = yield* Effect.tryPromise({
           try: () => cache
-            .namespace(CacheNameSpace.WORKSPACE_INVITE_TOKEN)
+            .namespace(CacheNamespace.WORKSPACE_INVITE_TOKEN)
             .get({ key: decodedDetails[0] }),
           catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving cached invite token.'),
         })
