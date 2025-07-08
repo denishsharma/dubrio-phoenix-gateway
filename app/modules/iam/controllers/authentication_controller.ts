@@ -117,7 +117,7 @@ export default class AuthenticationController {
           DataSource.known({
             firstName: user.firstName,
             lastName: user.lastName,
-            email_address: user.email,
+            emailAddress: user.email,
             isAccountVerified: user.isAccountVerified,
             onboardingStatus: user.onboardingStatus,
           }),
@@ -125,7 +125,7 @@ export default class AuthenticationController {
             Schema.Struct({
               firstName: Schema.String,
               lastName: Schema.optional(Schema.NullOr(Schema.String)),
-              email_address: Schema.String,
+              emailAddress: Schema.String,
               isAccountVerified: Schema.Boolean,
               onboardingStatus: Schema.Enums(OnboardingStatus),
               // TODO: Fetch the default workspace and include it in the response

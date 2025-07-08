@@ -248,8 +248,8 @@ function base<
                   {
                     validator: (options as DataPayloadProcessOptions<typeof DataPayloadKind.REQUEST, M>).validatorOptions as any,
                     exception: {
-                      validation: 'Validation error while validation the request data payload.',
-                      unknown: 'Unknown error while validation the request data payload.',
+                      validation: 'Validation error while validating the request data payload.',
+                      unknown: 'Unknown error while validating the request data payload.',
                     },
                   },
                 )(data)
