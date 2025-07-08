@@ -18,6 +18,8 @@ export const EXCEPTION_CODE = Enum({
   E_ACCOUNT_ALREADY_VERIFIED: 'E_ACCOUNT_ALREADY_VERIFIED',
   E_ACCOUNT_VERIFICATION_REQUIRED: 'E_ACCOUNT_VERIFICATION_REQUIRED',
   E_INVALID_ACCOUNT_VERIFICATION_TOKEN: 'E_INVALID_ACCOUNT_VERIFICATION_TOKEN',
+
+  E_NO_ACTIVE_WORKSPACE: 'E_NO_ACTIVE_WORKSPACE',
 })
 
 export type ExceptionCode = InferValue<typeof EXCEPTION_CODE>
@@ -58,6 +60,7 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   [ExceptionCode.E_NOT_GUEST_USER]: {
     message: 'You are already authenticated. Requested action or resource is only available for guest users.',
   },
+
   [ExceptionCode.E_ACCOUNT_ALREADY_VERIFIED]: {
     message: 'This email address is already verified. Please use a different email address to proceed.',
   },
@@ -66,5 +69,8 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   },
   [ExceptionCode.E_INVALID_ACCOUNT_VERIFICATION_TOKEN]: {
     message: 'This account verification link is either expired or invalid. Please request a new verification link to proceed.',
+  },
+  [ExceptionCode.E_NO_ACTIVE_WORKSPACE]: {
+    message: 'No active workspace found. Please set an active workspace.',
   },
 }

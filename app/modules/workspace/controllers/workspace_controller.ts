@@ -1,8 +1,10 @@
 import type { HttpContext as FrameworkHttpContext } from '@adonisjs/core/http'
+import ApplicationRuntimeExecution from '#core/effect/execution/application_runtime_execution'
 import TypedEffectService from '#core/effect/services/typed_effect_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import HttpContext from '#core/http/contexts/http_context'
 import HttpRequestService from '#core/http/services/http_request_service'
+import TelemetryService from '#core/telemetry/services/telemetry_service'
 import VineValidationService from '#core/validation/services/vine_validation_service'
 import Workspace from '#models/workspace_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
@@ -15,6 +17,8 @@ import vine from '@vinejs/vine'
 import { Effect, Layer, pipe } from 'effect'
 
 export default class WorkspaceController {
+  private telemetryScope = 'workspace-controller'
+
   async createWorkspace({ auth, request, response }: FrameworkHttpContext) {
     // Since auth middleware is applied, user will always be present
     const user = await auth.use('web').user!
@@ -59,36 +63,22 @@ export default class WorkspaceController {
   }
 
   async sendWorkspaceInviteEmail(ctx: FrameworkHttpContext) {
-    const program = Effect.gen(function* () {
+    return await Effect.gen(this, function* () {
+      const telemetry = yield* TelemetryService
+
       const workspaceService = yield* WorkspaceService
 
-      const payload = yield* SendWorkspaceInviteEmailPayload.fromRequest()
+      return yield* Effect.gen(function* () {
+        const payload = yield* SendWorkspaceInviteEmailPayload.fromRequest()
 
-      const result = yield* workspaceService.sendWorkspaceInviteEmail(payload)
+        const result = yield* workspaceService.sendWorkspaceInviteEmail(payload)
 
-      return ctx.response.status(200).json(result)
-    })
-
-    return Effect.runPromise(
-      pipe(
-        program,
-        Effect.provide(WorkspaceService.Default),
-        Effect.provide(HttpContext.provide(ctx)),
-        Effect.provide(ErrorConversionService.Default),
-        Effect.provide(StringMixerService.Default),
-        Effect.provide(VineValidationService.Default),
-        Effect.provide(TypedEffectService.Default),
-        Effect.provide(HttpRequestService.Default),
-        Effect.catchAll(error =>
-          Effect.sync(() =>
-            ctx.response.internalServerError({
-              success: false,
-              message: error?.message ?? 'Unexpected error occurred',
-            }),
-          ),
-        ),
-      ),
-    )
+        return result
+      }).pipe(
+        telemetry.withTelemetrySpan('send_workspace_invite_email'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
+      )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
   }
 
   async acceptInvite(ctx: FrameworkHttpContext) {
@@ -117,7 +107,6 @@ export default class WorkspaceController {
           Layer.mergeAll(
             HttpContext.provide(ctx),
             HttpRequestService.Default,
-
             VineValidationService.Default,
             TypedEffectService.Default,
             WorkspaceService.Default,

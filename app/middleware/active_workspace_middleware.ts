@@ -1,44 +1,51 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
+import ApplicationRuntimeExecution from '#core/effect/execution/application_runtime_execution'
 import SchemaError from '#core/schema/errors/schema_error'
+import TelemetryService from '#core/telemetry/services/telemetry_service'
 import Workspace from '#models/workspace_model'
+import NoActiveWorkspaceException from '#modules/workspace/exceptions/no_active_workspace_exception'
+import is from '@adonisjs/core/helpers/is'
 import { Effect, pipe, Schema } from 'effect'
 
 export default class ActiveWorkspaceMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
-    /**
-     * Middleware logic goes here (before the next call)
-     */
+    await Effect.gen(function* () {
+      const telemetry = yield* TelemetryService
 
-    const activeWorkspace = ctx.session.get('active_workspace')
+      return yield* Effect.gen(function* () {
+        const activeWorkspace = ctx.session.get('active_workspace')
 
-    if (!activeWorkspace) {
-      ctx.response.status(403).send('No active workspace found. Please set an active workspace.')
-      return
-    }
+        if (is.nullOrUndefined(activeWorkspace)) {
+          return yield* new NoActiveWorkspaceException()
+        }
 
-    const program = pipe(
-      activeWorkspace,
-      Schema.decodeUnknown(
-        Schema.ULID,
-      ),
-      SchemaError.fromParseError('Unexpected error occurred while decoding the active workspace ID.'),
-    )
-    const activeWorkspaceId = await Effect.runPromise(program)
+        const activeWorkspaceId = yield* pipe(
+          activeWorkspace,
+          Schema.decodeUnknown(
+            Schema.ULID,
+          ),
+          SchemaError.fromParseError('Unexpected error occurred while decoding the active workspace ID.'),
+        )
 
-    const workspace = await Workspace.query()
-      .where('uid', activeWorkspaceId)
-      .first()
+        const workspace = yield* Effect.tryPromise({
+          try: () => Workspace.query()
+            .where('uid', activeWorkspaceId)
+            .first(),
+          catch: NoActiveWorkspaceException.fromUnknownError(),
+        })
 
-    if (!workspace) {
-      ctx.response.status(403).send('Active workspace not found or you do not have access to it.')
-      return
-    }
-    ctx.activeWorkspaceId = workspace.uid
+        if (is.nullOrUndefined(workspace)) {
+          ctx.session.forget('active_workspace')
+          return yield* new NoActiveWorkspaceException()
+        }
+        ctx.activeWorkspaceId = workspace.uid
+      }).pipe(
+        telemetry.withTelemetrySpan('active_workspace'),
+        telemetry.withScopedTelemetry('active_workspace_middleware'),
+      )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
 
-    /**
-     * Call next method in the pipeline and return its output
-     */
     const output = await next()
     return output
   }
