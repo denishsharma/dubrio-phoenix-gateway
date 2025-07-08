@@ -20,6 +20,7 @@ export const EXCEPTION_CODE = Enum({
   E_INVALID_ACCOUNT_VERIFICATION_TOKEN: 'E_INVALID_ACCOUNT_VERIFICATION_TOKEN',
 
   E_NO_ACTIVE_WORKSPACE: 'E_NO_ACTIVE_WORKSPACE',
+  E_WORKSPACE_INVITE: 'E_WORKSPACE_INVITE',
 })
 
 export type ExceptionCode = InferValue<typeof EXCEPTION_CODE>
@@ -72,5 +73,8 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   },
   [ExceptionCode.E_NO_ACTIVE_WORKSPACE]: {
     message: 'No active workspace found. Please set an active workspace.',
+  },
+  [ExceptionCode.E_WORKSPACE_INVITE]: {
+    message: 'Workspace invite error occurred. This could be due to an invalid invite token or other issues related to workspace invitations.',
   },
 }

@@ -11,6 +11,7 @@ import Workspace from '#models/workspace_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import AuthenticationService from '#modules/iam/services/authentication_service'
 import { WorkspaceMemberStatus } from '#modules/workspace/constants/workspace_member_status'
+import WorkspaceInviteException from '#modules/workspace/exceptions/workspace_invite_exception'
 import SendWorkspaceInviteJob from '#modules/workspace/jobs/send_workspace_invite_job'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import cache from '@adonisjs/cache/services/main'
@@ -40,7 +41,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           try: () => Workspace.query()
             .where('uid', currentActiveWorkspaceId)
             .firstOrFail(),
-          catch: errorConversion.toUnknownError('Unexpected error occurred while fetching workspace by ID.'),
+          catch: () => new WorkspaceInviteException(
+            'The workspace you are trying to invite users to was not found.',
+          ),
         })
 
         yield* Effect.forEach(
@@ -123,7 +126,11 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
         })
 
         if (!cachedInvite) {
-          throw new Error('Invite token not found or expired')
+          return Effect.fail(
+            new WorkspaceInviteException(
+              'The invitation token is invalid or has expired.',
+            ),
+          )
         }
 
         const cacheData = yield* pipe(
@@ -143,7 +150,11 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
         )
 
         if (cacheData.token.value !== token || cacheData.token.key !== key) {
-          throw new Error('Token validation failed')
+          return Effect.fail(
+            new WorkspaceInviteException(
+              'Token validation failed.',
+            ),
+          )
         }
 
         const workspace = yield* Effect.tryPromise({
@@ -152,7 +163,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
         })
 
         if (!workspace) {
-          throw new Error('Workspace not found')
+          return Effect.fail(
+            new WorkspaceInviteException('Workspace not found.'),
+          )
         }
 
         const sender = yield* Effect.tryPromise({
@@ -161,14 +174,18 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
         })
 
         if (!sender) {
-          throw new Error('The person who invited you is not found')
+          return Effect.fail(
+            new WorkspaceInviteException('The person who invited you is not found.'),
+          )
         }
 
         if (payload.mode === 'accept') {
           const getAuthenticatedUser = yield* authenticationService.getAuthenticatedUser
 
           if (inviteeEmail !== getAuthenticatedUser.email) {
-            throw new Error('You logged in with a different email than the one you were invited with.')
+            return Effect.fail(
+              new WorkspaceInviteException('You logged in with a different email than the one you were invited with.'),
+            )
           }
 
           const user = yield* Effect.tryPromise({
@@ -177,7 +194,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           })
 
           if (!user) {
-            throw new Error('User not found')
+            return Effect.fail(
+              new WorkspaceInviteException('User not found.'),
+            )
           }
 
           yield* Effect.tryPromise({
@@ -221,11 +240,15 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           })
 
           if (!user) {
-            throw new Error('User not found')
+            return Effect.fail(
+              new WorkspaceInviteException('User not found.'),
+            )
           }
 
           if (user.email !== inviteeEmail) {
-            throw new Error('Authentication failed')
+            return Effect.fail(
+              new WorkspaceInviteException('Authentication failed.'),
+            )
           }
 
           const isUserAuthenticated = yield* Effect.tryPromise({
@@ -234,7 +257,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           })
 
           if (!isUserAuthenticated) {
-            throw new Error('Authentication failed')
+            return Effect.fail(
+              new WorkspaceInviteException('Authentication failed.'),
+            )
           }
 
           yield* Effect.tryPromise({
@@ -276,7 +301,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           })
 
           if (userExists) {
-            throw new Error('User already exists with this email. Please login instead.')
+            return Effect.fail(
+              new WorkspaceInviteException('User already exists with this email. Please login instead.'),
+            )
           }
 
           const user = yield* Effect.tryPromise({
@@ -326,7 +353,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           }
         }
 
-        throw new Error('Invalid mode')
+        return Effect.fail(
+          new WorkspaceInviteException('Invalid mode.'),
+        )
       })
     }
 
@@ -345,7 +374,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
         })
 
         if (!cachedInvite) {
-          throw new Error('Cached invite token not found.')
+          return Effect.fail(
+            new WorkspaceInviteException('Cached invite token not found.'),
+          )
         }
 
         const cacheData = yield* pipe(
