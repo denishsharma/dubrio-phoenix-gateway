@@ -12,9 +12,11 @@ import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import UnauthorizedException from '#modules/iam/exceptions/unauthorized_exception'
 import QueueVerificationEmailPayload from '#modules/iam/payloads/account/queue_verification_email_payload'
 import AuthenticationCredentialsPayload from '#modules/iam/payloads/authentication/authentication_credentials_payload'
+import RegisterUserPayload from '#modules/iam/payloads/authentication/register_user_payload'
 import AccountVerificationService from '#modules/iam/services/account_verification_service'
 import AuthenticationService from '#modules/iam/services/authentication_service'
 import MaskingService from '#shared/common/services/masking_service'
+import { UserIdentifier } from '#shared/schemas/user/user_attributes'
 import is from '@adonisjs/core/helpers/is'
 import { Duration, Effect, Option, pipe, Schema } from 'effect'
 
@@ -206,34 +208,93 @@ export default class AuthenticationController {
     }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
   }
 
-  // TODO: Implement user registration logic
-  // async register({ request, response }: HttpContext) {
-  //   const data = await request.validateUsing(vine.compile(
-  //     vine.object({
-  //       first_name: vine.string(),
-  //       last_name: vine.string().optional(),
-  //       email: vine.string().normalizeEmail(),
-  //       password: vine.string().minLength(6),
-  //     }),
-  //   ))
+  /**
+   * Handles user registration.
+   *
+   * This method creates a new user account and sends a verification email.
+   * The verification email logic is handled in the controller to separate
+   * concerns between user creation and email notification.
+   */
+  async registerUser(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
+      const masking = yield* MaskingService
 
-  //   const user = await User.create({
-  //     firstName: data.first_name,
-  //     lastName: data.last_name,
-  //     email: data.email,
-  //     password: data.password,
-  //     isVerified: false,
-  //     onboardingStatus: OnboardingStatus.NOT_STARTED,
-  //   })
+      const accountVerificationService = yield* AccountVerificationService
+      const authenticationService = yield* AuthenticationService
 
-  //   await this.accountVerification.queueVerificationEmail(
-  //     QueueVerificationEmailPayload.make({
-  //       user_identifier: user.uid,
-  //       email: user.email ?? '',
-  //       duration: Duration.seconds(60 * 60 * 2),
-  //     }),
-  //   )
+      return yield* Effect.gen(function* () {
+        /**
+         * Create the user using the authentication service
+         */
+        const user = yield* pipe(
+          RegisterUserPayload.fromRequest(),
+          Effect.flatMap(authenticationService.registerUser),
+        )
 
-  //   return response.created({ message: 'User registered successfully' })
-  // }
+        /**
+         * Queue verification email for the newly created user
+         * This is handled in the controller to separate concerns
+         */
+        const verificationJob = yield* pipe(
+          DataSource.known({
+            user: {
+              identifier: UserIdentifier.make(user.uid),
+              email_address: user.email!,
+            },
+            duration: Duration.hours(1),
+          }),
+          QueueVerificationEmailPayload.fromSource(),
+          Effect.flatMap(accountVerificationService.queueVerificationEmail),
+        )
+
+        /**
+         * Annotate response metadata with user and job information
+         */
+        yield* responseContext.annotateMetadata({
+          user_id: user.uid,
+          job_id: verificationJob.id,
+        })
+
+        /**
+         * Mask the email address for security in the response message
+         */
+        const maskedEmailAddress = yield* masking.maskEmail(user.email!)
+
+        /**
+         * Return the registration response with user information and success message
+         */
+        return yield* pipe(
+          DataSource.known({
+            message: `Registration successful! We've sent a verification email to ${maskedEmailAddress}. Please check your email and click the verification link to activate your account.`,
+            user: {
+              uid: user.uid,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              emailAddress: user.email!,
+              isAccountVerified: user.isAccountVerified,
+              onboardingStatus: user.onboardingStatus,
+            },
+          }),
+          UsingResponseEncoder(
+            Schema.Struct({
+              message: Schema.String,
+              user: Schema.Struct({
+                uid: Schema.String,
+                firstName: Schema.String,
+                lastName: Schema.optional(Schema.NullOr(Schema.String)),
+                emailAddress: Schema.String,
+                isAccountVerified: Schema.Boolean,
+                onboardingStatus: Schema.Enums(OnboardingStatus),
+              }),
+            }),
+          ),
+        )
+      }).pipe(
+        telemetry.withTelemetrySpan('register_user'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
+      )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
+  }
 }

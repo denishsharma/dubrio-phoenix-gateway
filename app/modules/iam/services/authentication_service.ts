@@ -1,9 +1,11 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
 import type AuthenticationCredentialsPayload from '#modules/iam/payloads/authentication/authentication_credentials_payload'
+import type RegisterUserPayload from '#modules/iam/payloads/authentication/register_user_payload'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import HttpContext from '#core/http/contexts/http_context'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import User from '#models/user_model'
+import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import AccountVerificationRequiredException from '#modules/iam/exceptions/account_verification_required_exception'
 import InvalidCredentialsException from '#modules/iam/exceptions/invalid_credentials_exception'
 import UnauthorizedException from '#modules/iam/exceptions/unauthorized_exception'
@@ -139,6 +141,44 @@ export default class AuthenticationService extends Effect.Service<Authentication
       }
     }).pipe(telemetry.withTelemetrySpan('logout'))
 
+    function registerUser(payload: ProcessedDataPayload<RegisterUserPayload>) {
+      return Effect.gen(function* () {
+        /**
+         * Check if user already exists
+         * This is done by checking if a user with the provided email address already exists in the database.
+         * If a user with the provided email address already exists, we throw an exception.
+         */
+        let user = yield* Effect.tryPromise({
+          try: () => User
+            .query()
+            .where('email', payload.email_address)
+            .first(),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while checking if user already exists.'),
+        })
+
+        if (is.truthy(user)) {
+          return yield* new InvalidCredentialsException('User with this email address already exists.')
+        }
+
+        user = yield* Effect.tryPromise({
+          try: () => User.create({
+            email: payload.email_address,
+            password: Redacted.value(payload.password),
+            firstName: payload.first_name,
+            lastName: payload.last_name,
+            isAccountVerified: false,
+            onboardingStatus: OnboardingStatus.NOT_STARTED,
+          }),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while creating user.'),
+        })
+
+        /**
+         * Return the created user for the controller to handle email verification
+         */
+        return user
+      }).pipe(telemetry.withTelemetrySpan('register_user'))
+    }
+
     return {
       /**
        * Authenticate a user with their credentials.
@@ -177,6 +217,12 @@ export default class AuthenticationService extends Effect.Service<Authentication
        * This will revoke the session and access token if they exist.
        */
       logout,
+
+      /**
+       * Register a new user.
+       * This method is not implemented yet.
+       */
+      registerUser,
     }
   }),
 }) {}
