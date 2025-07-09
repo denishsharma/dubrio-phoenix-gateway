@@ -1,6 +1,8 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
 import type AuthenticationCredentialsPayload from '#modules/iam/payloads/authentication/authentication_credentials_payload'
+import type ForgotPasswordPayload from '#modules/iam/payloads/authentication/forgot_password_payload'
 import type RegisterUserPayload from '#modules/iam/payloads/authentication/register_user_payload'
+import type ResetPasswordPayload from '#modules/iam/payloads/authentication/reset_password_payload'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import HttpContext from '#core/http/contexts/http_context'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
@@ -9,16 +11,22 @@ import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import AccountVerificationRequiredException from '#modules/iam/exceptions/account_verification_required_exception'
 import InvalidCredentialsException from '#modules/iam/exceptions/invalid_credentials_exception'
 import UnauthorizedException from '#modules/iam/exceptions/unauthorized_exception'
+import PasswordResetService from '#modules/iam/services/password_reset_service'
 import { UserIdentifier } from '#shared/schemas/user/user_attributes'
 import { errors as authErrors } from '@adonisjs/auth'
 import is from '@adonisjs/core/helpers/is'
 import { Effect, Match, Redacted, Ref } from 'effect'
 
 export default class AuthenticationService extends Effect.Service<AuthenticationService>()('@service/modules/iam/authentication', {
-  dependencies: [ErrorConversionService.Default, TelemetryService.Default],
+  dependencies: [
+    ErrorConversionService.Default,
+    TelemetryService.Default,
+    PasswordResetService.Default,
+  ],
   effect: Effect.gen(function* () {
     const errorConversion = yield* ErrorConversionService
     const telemetry = yield* TelemetryService
+    const passwordResetService = yield* PasswordResetService
 
     function authenticateWithCredentials(payload: ProcessedDataPayload<AuthenticationCredentialsPayload>) {
       return Effect.gen(function* () {
@@ -179,6 +187,14 @@ export default class AuthenticationService extends Effect.Service<Authentication
       }).pipe(telemetry.withTelemetrySpan('register_user'))
     }
 
+    function forgotPassword(payload: ProcessedDataPayload<ForgotPasswordPayload>) {
+      return passwordResetService.generateResetToken(payload)
+    }
+
+    function resetPassword(payload: ProcessedDataPayload<ResetPasswordPayload>) {
+      return passwordResetService.resetPassword(payload)
+    }
+
     return {
       /**
        * Authenticate a user with their credentials.
@@ -220,9 +236,27 @@ export default class AuthenticationService extends Effect.Service<Authentication
 
       /**
        * Register a new user.
-       * This method is not implemented yet.
+       * Creates a new user account with the provided details.
+       *
+       * @param payload - The registration payload containing user details.
        */
       registerUser,
+
+      /**
+       * Generate a password reset token for the user.
+       * This will send a password reset email to the user with a reset token.
+       *
+       * @param payload - The forgot password payload containing the user's email address.
+       */
+      forgotPassword,
+
+      /**
+       * Reset the user's password using a valid reset token.
+       * This will update the user's password and invalidate the reset token.
+       *
+       * @param payload - The reset password payload containing token and new password.
+       */
+      resetPassword,
     }
   }),
 }) {}

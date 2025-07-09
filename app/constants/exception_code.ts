@@ -19,6 +19,9 @@ export const EXCEPTION_CODE = Enum({
   E_ACCOUNT_VERIFICATION_REQUIRED: 'E_ACCOUNT_VERIFICATION_REQUIRED',
   E_INVALID_ACCOUNT_VERIFICATION_TOKEN: 'E_INVALID_ACCOUNT_VERIFICATION_TOKEN',
 
+  E_USER_NOT_FOUND: 'E_USER_NOT_FOUND',
+  E_INVALID_RESET_TOKEN: 'E_INVALID_RESET_TOKEN',
+
   E_NO_ACTIVE_WORKSPACE: 'E_NO_ACTIVE_WORKSPACE',
   E_WORKSPACE_INVITE: 'E_WORKSPACE_INVITE',
 })
@@ -70,6 +73,12 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   },
   [ExceptionCode.E_INVALID_ACCOUNT_VERIFICATION_TOKEN]: {
     message: 'This account verification link is either expired or invalid. Please request a new verification link to proceed.',
+  },
+  [ExceptionCode.E_USER_NOT_FOUND]: {
+    message: 'No user found with the provided email address.',
+  },
+  [ExceptionCode.E_INVALID_RESET_TOKEN]: {
+    message: 'This password reset link is either expired or invalid. Please request a new password reset link to proceed.',
   },
   [ExceptionCode.E_NO_ACTIVE_WORKSPACE]: {
     message: 'No active workspace found. Please set an active workspace.',

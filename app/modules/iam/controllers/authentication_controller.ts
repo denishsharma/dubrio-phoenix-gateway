@@ -2,6 +2,8 @@ import type User from '#models/user_model'
 import type { HttpContext as FrameworkHttpContext } from '@adonisjs/core/http'
 import type { SetNonNullable } from 'type-fest'
 import { DataSource } from '#constants/data_source'
+import DatabaseTransaction from '#core/database/contexts/database_transaction_context'
+import DatabaseService from '#core/database/services/database_service'
 import ApplicationRuntimeExecution from '#core/effect/execution/application_runtime_execution'
 import TypedEffectService from '#core/effect/services/typed_effect_service'
 import HttpResponseContextService from '#core/http/services/http_response_context_service'
@@ -12,7 +14,9 @@ import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import UnauthorizedException from '#modules/iam/exceptions/unauthorized_exception'
 import QueueVerificationEmailPayload from '#modules/iam/payloads/account/queue_verification_email_payload'
 import AuthenticationCredentialsPayload from '#modules/iam/payloads/authentication/authentication_credentials_payload'
+import ForgotPasswordPayload from '#modules/iam/payloads/authentication/forgot_password_payload'
 import RegisterUserPayload from '#modules/iam/payloads/authentication/register_user_payload'
+import ResetPasswordPayload from '#modules/iam/payloads/authentication/reset_password_payload'
 import AccountVerificationService from '#modules/iam/services/account_verification_service'
 import AuthenticationService from '#modules/iam/services/authentication_service'
 import MaskingService from '#shared/common/services/masking_service'
@@ -293,6 +297,112 @@ export default class AuthenticationController {
         )
       }).pipe(
         telemetry.withTelemetrySpan('register_user'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
+      )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
+  }
+
+  /**
+   * Handles forgot password requests.
+   *
+   * This method validates the email address, generates a password reset token,
+   * and queues a password reset email to be sent to the user.
+   */
+  async forgotPassword(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
+      const masking = yield* MaskingService
+
+      const authenticationService = yield* AuthenticationService
+
+      return yield* Effect.gen(function* () {
+        /**
+         * Generate reset token and send email
+         */
+        const result = yield* pipe(
+          ForgotPasswordPayload.fromRequest(),
+          Effect.flatMap(authenticationService.forgotPassword),
+        )
+
+        /**
+         * Annotate response metadata with user and job information
+         */
+        yield* responseContext.annotateMetadata({
+          user_id: result.user.uid,
+          job_id: result.job.id,
+        })
+
+        /**
+         * Mask the email address for security in the response message
+         */
+        const maskedEmailAddress = yield* masking.maskEmail(result.user.email!)
+
+        /**
+         * Return success response with masked email
+         */
+        return yield* pipe(
+          DataSource.known({
+            message: `If an account with email ${maskedEmailAddress} exists, we've sent a password reset link to it. Please check your email.`,
+          }),
+          UsingResponseEncoder(
+            Schema.Struct({
+              message: Schema.String,
+            }),
+          ),
+        )
+      }).pipe(
+        telemetry.withTelemetrySpan('forgot_password'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
+      )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
+  }
+
+  /**
+   * Handles password reset requests.
+   *
+   * This method validates the reset token and updates the user's password.
+   */
+  async resetPassword(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const database = yield* DatabaseService
+      const telemetry = yield* TelemetryService
+
+      const authenticationService = yield* AuthenticationService
+
+      return yield* Effect.gen(function* () {
+        /**
+         * Reset the user's password using the provided token
+         */
+        const user = yield* pipe(
+          ResetPasswordPayload.fromRequest(),
+          Effect.flatMap(authenticationService.resetPassword),
+        )
+
+        /**
+         * Return success response
+         */
+        return yield* pipe(
+          DataSource.known({
+            message: 'Password has been reset successfully. You can now log in with your new password.',
+            user: {
+              uid: user.uid,
+              emailAddress: user.email!,
+            },
+          }),
+          UsingResponseEncoder(
+            Schema.Struct({
+              message: Schema.String,
+              user: Schema.Struct({
+                uid: Schema.String,
+                emailAddress: Schema.String,
+              }),
+            }),
+          ),
+        )
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('reset_password'),
         telemetry.withScopedTelemetry(this.telemetryScope),
       )
     }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
