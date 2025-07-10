@@ -5,6 +5,7 @@ export const EXCEPTION_CODE = Enum({
   E_ROUTE_NOT_FOUND: 'E_ROUTE_NOT_FOUND',
   E_VALIDATION: 'E_VALIDATION',
   E_INTERNAL_SERVER: 'E_INTERNAL_SERVER',
+  E_FORBIDDEN_ACTION: 'E_FORBIDDEN_ACTION',
 
   E_RESOURCE_NOT_FOUND: 'E_RESOURCE_NOT_FOUND',
   E_RESOURCE_ALREADY_EXISTS: 'E_RESOURCE_ALREADY_EXISTS',
@@ -39,11 +40,14 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   [ExceptionCode.E_ROUTE_NOT_FOUND]: {
     message: 'Could not find the requested route for the requested method.',
   },
+  [ExceptionCode.E_VALIDATION]: {
+    message: 'Validation failed for the request while processing the request payload.',
+  },
   [ExceptionCode.E_INTERNAL_SERVER]: {
     message: 'Unexpected error occurred while processing the request and the server is unable to fulfill the request.',
   },
-  [ExceptionCode.E_VALIDATION]: {
-    message: 'Validation failed for the request while processing the request payload.',
+  [ExceptionCode.E_FORBIDDEN_ACTION]: {
+    message: 'You do not have necessary permissions to perform the requested action.',
   },
   [ExceptionCode.E_RESOURCE_NOT_FOUND]: {
     message: 'The requested resource you are looking for could not be found.',
