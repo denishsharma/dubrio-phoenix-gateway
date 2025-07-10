@@ -9,7 +9,7 @@ export default class ResetPasswordPayload extends DataPayload('modules/iam/authe
   validator: vine.compile(
     vine.object({
       token: vine.object({
-        token: vine.string().trim(),
+        value: vine.string().trim(),
         key: vine.string().trim(),
       }),
       password: vine.string().trim().minLength(8).maxLength(64).confirmed({

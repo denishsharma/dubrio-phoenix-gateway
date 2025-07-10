@@ -227,9 +227,10 @@ export default class AuthenticationController {
    */
   async registerUser(ctx: FrameworkHttpContext) {
     return await Effect.gen(this, function* () {
-      const responseContext = yield* HttpResponseContextService
-      const telemetry = yield* TelemetryService
       const masking = yield* MaskingService
+      const responseContext = yield* HttpResponseContextService
+      const typedEffect = yield* TypedEffectService
+      const telemetry = yield* TelemetryService
 
       const accountVerificationService = yield* AccountVerificationService
       const authenticationService = yield* AuthenticationService
@@ -241,6 +242,8 @@ export default class AuthenticationController {
         const user = yield* pipe(
           RegisterUserPayload.fromRequest(),
           Effect.flatMap(authenticationService.registerUser),
+          typedEffect.ensureSuccessType<User>(),
+          typedEffect.overrideSuccessType<SetNonNullable<User, 'email'>>(),
         )
 
         /**
@@ -272,32 +275,28 @@ export default class AuthenticationController {
          */
         const maskedEmailAddress = yield* masking.maskEmail(user.email!)
 
+        yield* responseContext.setMessage(`Registration successful! We've sent a verification email to ${maskedEmailAddress}.`)
+
         /**
          * Return the registration response with user information and success message
          */
         return yield* pipe(
           DataSource.known({
-            message: `Registration successful! We've sent a verification email to ${maskedEmailAddress}. Please check your email and click the verification link to activate your account.`,
-            user: {
-              uid: user.uid,
-              firstName: user.firstName,
-              lastName: user.lastName,
-              emailAddress: user.email!,
-              isAccountVerified: user.isAccountVerified,
-              onboardingStatus: user.onboardingStatus,
-            },
+            id: user.uid,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            emailAddress: user.email,
+            isAccountVerified: user.isAccountVerified,
+            onboardingStatus: user.onboardingStatus,
           }),
           UsingResponseEncoder(
             Schema.Struct({
-              message: Schema.String,
-              user: Schema.Struct({
-                uid: Schema.String,
-                firstName: Schema.String,
-                lastName: Schema.optional(Schema.NullOr(Schema.String)),
-                emailAddress: Schema.String,
-                isAccountVerified: Schema.Boolean,
-                onboardingStatus: Schema.Enums(OnboardingStatus),
-              }),
+              id: Schema.String,
+              firstName: Schema.String,
+              lastName: Schema.optional(Schema.NullOr(Schema.String)),
+              emailAddress: Schema.String,
+              isAccountVerified: Schema.Boolean,
+              onboardingStatus: Schema.Enums(OnboardingStatus),
             }),
           ),
         )

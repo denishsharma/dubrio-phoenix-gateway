@@ -7,8 +7,8 @@ export default class RegisterUserPayload extends DataPayload('modules/iam/authen
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({
-      email_address: vine.string().trim(),
-      password: vine.string().trim().minLength(8).confirmed({
+      email_address: vine.string().trim().normalizeEmail(),
+      password: vine.string().trim().minLength(8).maxLength(64).confirmed({
         confirmationField: 'confirm_password',
       }),
       first_name: vine.string().trim().minLength(3),
