@@ -14,13 +14,12 @@ export const EXCEPTION_CODE = Enum({
   E_INVALID_CREDENTIALS: 'E_INVALID_CREDENTIALS',
   E_UNAUTHORIZED: 'E_UNAUTHORIZED',
   E_NOT_GUEST_USER: 'E_NOT_GUEST_USER',
+  E_PASSWORD_REUSE: 'E_PASSWORD_REUSE',
+  E_INVALID_PASSWORD_RESET_TOKEN: 'E_INVALID_PASSWORD_RESET_TOKEN',
 
   E_ACCOUNT_ALREADY_VERIFIED: 'E_ACCOUNT_ALREADY_VERIFIED',
   E_ACCOUNT_VERIFICATION_REQUIRED: 'E_ACCOUNT_VERIFICATION_REQUIRED',
   E_INVALID_ACCOUNT_VERIFICATION_TOKEN: 'E_INVALID_ACCOUNT_VERIFICATION_TOKEN',
-
-  E_USER_NOT_FOUND: 'E_USER_NOT_FOUND',
-  E_INVALID_RESET_TOKEN: 'E_INVALID_RESET_TOKEN',
 
   E_NO_ACTIVE_WORKSPACE: 'E_NO_ACTIVE_WORKSPACE',
   E_WORKSPACE_INVITE: 'E_WORKSPACE_INVITE',
@@ -64,7 +63,12 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   [ExceptionCode.E_NOT_GUEST_USER]: {
     message: 'You are already authenticated. Requested action or resource is only available for guest users.',
   },
-
+  [ExceptionCode.E_PASSWORD_REUSE]: {
+    message: 'You cannot reuse a previously used password. Please choose a new password that has not been used before.',
+  },
+  [ExceptionCode.E_INVALID_PASSWORD_RESET_TOKEN]: {
+    message: 'This password reset link is either expired or invalid. Please request a new password reset link to proceed.',
+  },
   [ExceptionCode.E_ACCOUNT_ALREADY_VERIFIED]: {
     message: 'This email address is already verified. Please use a different email address to proceed.',
   },
@@ -73,12 +77,6 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   },
   [ExceptionCode.E_INVALID_ACCOUNT_VERIFICATION_TOKEN]: {
     message: 'This account verification link is either expired or invalid. Please request a new verification link to proceed.',
-  },
-  [ExceptionCode.E_USER_NOT_FOUND]: {
-    message: 'No user found with the provided email address.',
-  },
-  [ExceptionCode.E_INVALID_RESET_TOKEN]: {
-    message: 'This password reset link is either expired or invalid. Please request a new password reset link to proceed.',
   },
   [ExceptionCode.E_NO_ACTIVE_WORKSPACE]: {
     message: 'No active workspace found. Please set an active workspace.',

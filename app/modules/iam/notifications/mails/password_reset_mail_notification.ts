@@ -6,7 +6,8 @@ export default class PasswordResetMailNotification extends Mail('modules/iam/not
   schema: Schema.Struct({
     to: Schema.String,
     from: Schema.String,
-    resetLink: Schema.String,
+    reset_link: Schema.String,
+    formatted_expiration: Schema.String,
   }),
   prepare: (context, payload) => Effect.gen(function* () {
     context.message.to(payload.to)

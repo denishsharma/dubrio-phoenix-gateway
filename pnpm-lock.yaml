@@ -122,6 +122,9 @@ importers:
       mysql2:
         specifier: ^3.14.1
         version: 3.14.1
+      pretty-ms:
+        specifier: ^9.2.0
+        version: 9.2.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2

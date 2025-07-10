@@ -24,7 +24,7 @@ import { RetrieveUserUsingIdentifier } from '#shared/retrieval_strategies/user_r
 import { UserIdentifier } from '#shared/schemas/user/user_attributes'
 import cache from '@adonisjs/cache/services/main'
 import is from '@adonisjs/core/helpers/is'
-import { Duration, Effect, flow, Match, pipe, Schema } from 'effect'
+import { Duration, Effect, Exit, flow, Match, pipe, Schema } from 'effect'
 
 export default class AccountVerificationService extends Effect.Service<AccountVerificationService>()('@service/modules/iam/account_verification', {
   dependencies: [
@@ -285,15 +285,28 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
         /**
          * Delete the account verification token from the cache.
          * This is done to prevent the token from being reused.
+         *
+         * We are using `addFinalizer` to ensure that the cache deletion
+         * happens only when the effect completes successfully.
+         *
+         * If the effect fails, the cache deletion will not be executed,
+         * thus preserving the token in the cache for potential retries.
          */
-        yield* Effect.tryPromise({
-          try: async () => {
-            return await cache.namespace(CacheNamespace.ACCOUNT_VERIFICATION_TOKEN).delete({
-              key: details.user_identifier.value,
-            })
-          },
-          catch: errorConversion.toUnknownError('Unexpected error occurred while deleting account verification token from cache.', { context: { data: { user_identifier: details.user_identifier.value } } }),
-        })
+        yield* Effect.addFinalizer(
+          Exit.match({
+            onFailure: () => Effect.void,
+            onSuccess: () => Effect.tryPromise({
+              try: async () => {
+                return await cache
+                  .namespace(CacheNamespace.ACCOUNT_VERIFICATION_TOKEN)
+                  .delete({
+                    key: details.user_identifier.value,
+                  })
+              },
+              catch: errorConversion.toUnknownError('Unexpected error occurred while deleting account verification token from cache.', { context: { data: { user_identifier: details.user_identifier.value } } }),
+            }).pipe(Effect.ignore),
+          }),
+        )
 
         /**
          * Retrieve the user using the user identifier from the token details.

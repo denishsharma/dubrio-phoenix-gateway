@@ -1,5 +1,6 @@
 import { ExceptionCode } from '#constants/exception_code'
 import { Exception } from '#core/error/factories/exception'
+import { Schema } from 'effect'
 import { StatusCodes } from 'http-status-codes'
 
 /**
@@ -10,7 +11,10 @@ import { StatusCodes } from 'http-status-codes'
  *
  * @category Exception
  */
-export default class InvalidResetTokenException extends Exception('invalid_reset_token')({
+export default class InvalidPasswordResetTokenException extends Exception('invalid_password_reset_token')({
   status: StatusCodes.BAD_REQUEST,
-  code: ExceptionCode.E_INVALID_RESET_TOKEN,
+  code: ExceptionCode.E_INVALID_PASSWORD_RESET_TOKEN,
+  schema: Schema.Struct({
+    reason: Schema.Literal('token_expired', 'token_invalid', 'user_not_found', 'unknown'),
+  }),
 }) {}

@@ -1,32 +1,55 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
 import type AuthenticationCredentialsPayload from '#modules/iam/payloads/authentication/authentication_credentials_payload'
-import type ForgotPasswordPayload from '#modules/iam/payloads/authentication/forgot_password_payload'
+import type QueuePasswordResetEmailPayload from '#modules/iam/payloads/authentication/queue_password_reset_email_payload'
 import type RegisterUserPayload from '#modules/iam/payloads/authentication/register_user_payload'
 import type ResetPasswordPayload from '#modules/iam/payloads/authentication/reset_password_payload'
+import type { Brand } from 'effect'
+import { CacheNamespace } from '#constants/cache_namespace'
+import { DataSource } from '#constants/data_source'
+import DatabaseService from '#core/database/services/database_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import HttpContext from '#core/http/contexts/http_context'
+import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_strategy'
+import LucidModelRetrievalService from '#core/lucid/services/lucid_model_retrieval_service'
+import { WithQueueJob } from '#core/queue_job/constants/with_queue_job'
+import QueueJobService from '#core/queue_job/services/queue_job_service'
+import SchemaError from '#core/schema/errors/schema_error'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import User from '#models/user_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import AccountVerificationRequiredException from '#modules/iam/exceptions/account_verification_required_exception'
 import InvalidCredentialsException from '#modules/iam/exceptions/invalid_credentials_exception'
+import InvalidPasswordResetTokenException from '#modules/iam/exceptions/invalid_password_reset_token_exception'
+import PasswordReuseException from '#modules/iam/exceptions/password_reuse_exception'
 import UnauthorizedException from '#modules/iam/exceptions/unauthorized_exception'
-import PasswordResetService from '#modules/iam/services/password_reset_service'
+import SendPasswordResetEmailJob from '#modules/iam/jobs/send_password_reset_email_job'
+import GeneratePasswordResetTokenPayload from '#modules/iam/payloads/authentication/generate_password_reset_token_payload'
+import { PasswordResetToken } from '#modules/iam/schemas/authentication/authentication_attributes'
+import StringMixerService from '#shared/common/services/string_mixer_service'
+import { RetrieveUserUsingIdentifier } from '#shared/retrieval_strategies/user_retrieval_strategy'
 import { UserIdentifier } from '#shared/schemas/user/user_attributes'
 import { errors as authErrors } from '@adonisjs/auth'
+import cache from '@adonisjs/cache/services/main'
 import is from '@adonisjs/core/helpers/is'
-import { Effect, Match, Redacted, Ref } from 'effect'
+import hash from '@adonisjs/core/services/hash'
+import { Duration, Effect, Exit, flow, Match, pipe, Redacted, Ref, Schema } from 'effect'
 
 export default class AuthenticationService extends Effect.Service<AuthenticationService>()('@service/modules/iam/authentication', {
   dependencies: [
+    DatabaseService.Default,
     ErrorConversionService.Default,
+    LucidModelRetrievalService.Default,
+    QueueJobService.Default,
+    StringMixerService.Default,
     TelemetryService.Default,
-    PasswordResetService.Default,
   ],
   effect: Effect.gen(function* () {
+    const database = yield* DatabaseService
     const errorConversion = yield* ErrorConversionService
+    const lucidModelRetrieval = yield* LucidModelRetrievalService
+    const queueJob = yield* QueueJobService
+    const stringMixer = yield* StringMixerService
     const telemetry = yield* TelemetryService
-    const passwordResetService = yield* PasswordResetService
 
     function authenticateWithCredentials(payload: ProcessedDataPayload<AuthenticationCredentialsPayload>) {
       return Effect.gen(function* () {
@@ -187,12 +210,258 @@ export default class AuthenticationService extends Effect.Service<Authentication
       }).pipe(telemetry.withTelemetrySpan('register_user'))
     }
 
-    function forgotPassword(payload: ProcessedDataPayload<ForgotPasswordPayload>) {
-      return passwordResetService.generateResetToken(payload)
+    function generatePasswordResetToken(payload: ProcessedDataPayload<GeneratePasswordResetTokenPayload>) {
+      return Effect.gen(function* () {
+        /**
+         * Generate a token using the string mixer service.
+         * This token is used for the password reset functionality.
+         */
+        const token = yield* pipe(
+          stringMixer.encode(payload.user_identifier.value),
+          Effect.flatMap(
+            flow(
+              Schema.decode(PasswordResetToken, { errors: 'all' }),
+              SchemaError.fromParseError('Unexpected error occurred while decoding password reset token.'),
+            ),
+          ),
+        )
+
+        /**
+         * Set the generated token in the cache with a TTL
+         * based on the duration specified in the payload.
+         */
+        yield* Effect.tryPromise({
+          try: async () => {
+            return await cache.namespace(CacheNamespace.PASSWORD_RESET_TOKEN).set({
+              key: payload.user_identifier.value,
+              value: token,
+              ttl: Duration.toMillis(payload.duration),
+            })
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while setting password reset token in cache.', { context: { data: { user_identifier: payload.user_identifier.value } } }),
+        }).pipe(telemetry.withTelemetrySpan('set_password_reset_token_in_cache'))
+
+        /**
+         * Return the generated token.
+         */
+        return token
+      }).pipe(telemetry.withTelemetrySpan('generate_password_reset_token'))
+    }
+
+    function verifyPasswordResetToken(token: PasswordResetToken, once: boolean = false) {
+      return Effect.gen(function* () {
+        /**
+         * Decode the token to get the user identifier.
+         */
+        const [userIdentifier] = yield* pipe(
+          stringMixer.decode(token.value, token.key),
+          Effect.catchTag('@error/internal/string_mixer', error => new InvalidPasswordResetTokenException(
+            { data: { reason: 'token_invalid' } },
+            undefined,
+            { cause: error },
+          )),
+        )
+
+        /**
+         * Get the cached token from the cache using the user identifier.
+         */
+        const cachedToken = yield* Effect.tryPromise({
+          try: async () => {
+            /**
+             * Retrieve the cached password reset token for the user.
+             */
+            return await cache
+              .namespace(CacheNamespace.PASSWORD_RESET_TOKEN)
+              .get<Brand.Brand.Unbranded<PasswordResetToken> | null | undefined>({
+                key: userIdentifier,
+                defaultValue: null,
+              })
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while getting password reset token from cache.', { context: { data: { user_identifier: userIdentifier } } }),
+        })
+
+        /**
+         * If the cached token is null or undefined, it means the token has expired.
+         */
+        if (is.nullOrUndefined(cachedToken)) {
+          return yield* new InvalidPasswordResetTokenException({ data: { reason: 'token_expired' } })
+        }
+
+        /**
+         * If token is not matching with the cached token,
+         * it means the token is invalid or has been tampered with.
+         */
+        if (cachedToken.value !== token.value || cachedToken.key !== token.key) {
+          return yield* new InvalidPasswordResetTokenException({ data: { reason: 'token_invalid' } })
+        }
+
+        /**
+         * If the `once` flag is true, delete the cached token
+         * after verifying it. This ensures that the token can only be used once.
+         */
+        yield* Effect.addFinalizer(
+          Exit.match({
+            onFailure: () => Effect.void,
+            onSuccess: () => Effect.tryPromise({
+              try: async () => {
+                return await cache.namespace(CacheNamespace.PASSWORD_RESET_TOKEN).delete({ key: userIdentifier })
+              },
+              catch: errorConversion.toUnknownError('Unexpected error occurred while deleting password reset token from cache.', { context: { data: { user_identifier: userIdentifier } } }),
+            }).pipe(
+              Effect.when(() => once),
+              Effect.ignore,
+            ),
+          }),
+        )
+
+        /**
+         * If everything is fine, return the user identifier.
+         */
+        return UserIdentifier.make(userIdentifier)
+      }).pipe(telemetry.withTelemetrySpan('verify_password_reset_token'))
+    }
+
+    function queuePasswordResetEmail(payload: ProcessedDataPayload<QueuePasswordResetEmailPayload>) {
+      return Effect.gen(function* () {
+        /**
+         * Retrieve the cached password reset token for the user.
+         *
+         * If the token is not cached, we generate a new token
+         * and cache it for the specified duration.
+         *
+         * If the token is cached, we decode it
+         * and return it as a PasswordResetToken.
+         */
+        const token = yield* pipe(
+          Effect.tryPromise({
+            try: async () => {
+              return await cache
+                .namespace(CacheNamespace.PASSWORD_RESET_TOKEN)
+                .get<PasswordResetToken | null | undefined>({
+                  key: payload.user.user_identifier.value,
+                  defaultValue: null,
+                })
+            },
+            catch: errorConversion.toUnknownError('Unexpected error occurred while getting password reset token from cache.', { context: { data: { user_identifier: payload.user.user_identifier.value } } }),
+          }),
+          Effect.flatMap(
+            Match.type<PasswordResetToken | null | undefined>().pipe(
+              /**
+               * If the token is not cached, we generate a new token
+               * and cache it for the specified duration.
+               */
+              Match.when(
+                is.nullOrUndefined,
+                () => Effect.suspend(() => pipe(
+                  DataSource.known({
+                    user_identifier: payload.user.user_identifier,
+                    duration: payload.duration,
+                  }),
+                  GeneratePasswordResetTokenPayload.fromSource(),
+                  Effect.flatMap(generatePasswordResetToken),
+                )).pipe(telemetry.withTelemetrySpan('generate_and_cache_password_reset_token')),
+              ),
+
+              /**
+               * If the token is cached, we decode it
+               * and return it as a PasswordResetToken.
+               */
+              Match.orElse(
+                data => Effect.suspend(() => pipe(
+                  data,
+                  Schema.decode(PasswordResetToken, { errors: 'all' }),
+                  SchemaError.fromParseError('Unexpected error occurred while decoding cached password reset token.'),
+                )),
+              ),
+            ),
+          ),
+        )
+
+        /**
+         * Dispatch the job to send the forgot password email.
+         */
+        return yield* pipe(
+          WithQueueJob(
+            SendPasswordResetEmailJob,
+            () => ({
+              email_address: payload.user.email_address,
+              token,
+              expires_in_millis: Duration.toMillis(payload.duration),
+            }),
+          ),
+          queueJob.dispatch,
+          Effect.map(job => ({ id: job.id })),
+        ).pipe(telemetry.withTelemetrySpan('dispatch_send_password_reset_email_job'))
+      }).pipe(telemetry.withTelemetrySpan('queue_password_reset_email'))
     }
 
     function resetPassword(payload: ProcessedDataPayload<ResetPasswordPayload>) {
-      return passwordResetService.resetPassword(payload)
+      return Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+
+        /**
+         * Verify the forgot password token and retrieve the user identifier.
+         */
+        const userIdentifier = yield* verifyPasswordResetToken(payload.token, true)
+
+        /**
+         * Retrieve the user from the database using the user identifier.
+         * If the user is not found, an InvalidPasswordResetTokenException is thrown.
+         */
+        const user = yield* pipe(
+          WithRetrievalStrategy(
+            RetrieveUserUsingIdentifier,
+            retrieve => retrieve(userIdentifier),
+            {
+              select: ['password'],
+              exception: {
+                throw: true,
+              },
+              query: {
+                client: trx,
+              },
+            },
+          ),
+          lucidModelRetrieval.retrieve,
+          Effect.catchTag('@error/exception/resource_not_found', () => new InvalidPasswordResetTokenException({ data: { reason: 'user_not_found' } })),
+        )
+
+        /**
+         * Check if the new password is the same as the previous password.
+         * If it is, throw a PasswordReuseException.
+         *
+         * This is done to prevent users from reusing their previous passwords,
+         * which is a common security practice to ensure that users choose strong and unique passwords.
+         */
+        yield* pipe(
+          Effect.tryPromise({
+            try: async () => {
+              if (is.nullOrUndefined(user.password)) { return false }
+              return await hash.verify(user.password, Redacted.value(payload.password))
+            },
+            catch: errorConversion.toUnknownError('Unexpected error occurred while verifying the user password.', { context: { data: { user_identifier: userIdentifier } } }),
+          }),
+          Effect.flatMap(
+            Match.type<boolean>().pipe(
+              Match.when(true, () => new PasswordReuseException('New password cannot be the same as the previous password. Please choose a different password.')),
+              Match.when(false, () => Effect.void),
+              Match.exhaustive,
+            ),
+          ),
+        )
+
+        /**
+         * Update the user's password with the new password provided in the payload.
+         * The password is redacted to ensure it is not logged or exposed in any way.
+         */
+        yield* Effect.tryPromise({
+          try: async () => {
+            user.password = Redacted.value(payload.password)
+            return await user.save()
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while updating the user password.', { context: { data: { user_identifier: userIdentifier } } }),
+        })
+      }).pipe(telemetry.withTelemetrySpan('reset_password'))
     }
 
     return {
@@ -244,17 +513,34 @@ export default class AuthenticationService extends Effect.Service<Authentication
 
       /**
        * Generate a password reset token for the user.
-       * This will send a password reset email to the user with a reset token.
+       * This token is used to reset the user's password.
        *
-       * @param payload - The forgot password payload containing the user's email address.
+       * @param payload - The payload containing user identifier and duration for the token.
        */
-      forgotPassword,
+      generatePasswordResetToken,
 
       /**
-       * Reset the user's password using a valid reset token.
-       * This will update the user's password and invalidate the reset token.
+       * Verify a password reset token.
+       * This checks if the token is valid and has not expired.
        *
-       * @param payload - The reset password payload containing token and new password.
+       * @param token - The password reset token to verify.
+       * @param once - If true, the token will be deleted after verification.
+       */
+      verifyPasswordResetToken,
+
+      /**
+       * Queue a password reset email for the user.
+       * This will send an email to the user with instructions on how to reset their password.
+       *
+       * @param payload - The payload containing user details and token duration.
+       */
+      queuePasswordResetEmail,
+
+      /**
+       * Reset a user's password.
+       * This will update the user's password to the new password provided in the payload.
+       *
+       * @param payload - The payload containing token and new password details.
        */
       resetPassword,
     }

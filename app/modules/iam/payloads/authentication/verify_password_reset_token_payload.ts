@@ -4,21 +4,17 @@ import { PasswordResetToken } from '#modules/iam/schemas/authentication/authenti
 import vine from '@vinejs/vine'
 import { Schema } from 'effect'
 
-export default class ResetPasswordPayload extends DataPayload('modules/iam/authentication/reset_password')({
+export default class VerifyPasswordResetTokenPayload extends DataPayload('modules/iam/authentication/verify_password_reset_token')({
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({
       token: vine.object({
-        token: vine.string().trim(),
-        key: vine.string().trim(),
-      }),
-      password: vine.string().trim().minLength(8).maxLength(64).confirmed({
-        confirmationField: 'confirm_password',
+        value: vine.string(),
+        key: vine.string(),
       }),
     }),
   ),
   schema: Schema.Struct({
     token: PasswordResetToken,
-    password: Schema.Redacted(Schema.NonEmptyTrimmedString),
   }),
 }) {}
