@@ -1,5 +1,6 @@
 import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
+import type { CamelCasedProperties, SnakeCasedProperties } from 'type-fest'
 import User from '#models/user_model'
 import { WorkspaceMemberStatus } from '#modules/workspace/constants/workspace_member_status'
 import { compose } from '@adonisjs/core/helpers'
@@ -59,3 +60,16 @@ export default class Workspace extends compose(BaseModel, SoftDeletes) {
     return WorkspaceMemberStatus
   }
 }
+
+export type WorkspaceModelFields = CamelCasedProperties<{
+  id: number;
+  uid: string;
+  name: string;
+  website: string | null;
+  logoUrl: string | null;
+  industry: string | null;
+  createdAt: DateTime;
+  updatedAt: DateTime;
+}>
+
+export type WorkspaceTableColumns = SnakeCasedProperties<WorkspaceModelFields>

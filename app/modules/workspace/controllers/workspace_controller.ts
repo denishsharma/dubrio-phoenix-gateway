@@ -1,43 +1,68 @@
 import type { HttpContext as FrameworkHttpContext } from '@adonisjs/core/http'
+import { DataSource } from '#constants/data_source'
 import ApplicationRuntimeExecution from '#core/effect/execution/application_runtime_execution'
 import TypedEffectService from '#core/effect/services/typed_effect_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import HttpContext from '#core/http/contexts/http_context'
 import HttpRequestService from '#core/http/services/http_request_service'
+import HttpResponseContextService from '#core/http/services/http_response_context_service'
+import UsingResponseEncoder from '#core/http/utils/using_response_encoder'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import VineValidationService from '#core/validation/services/vine_validation_service'
 import Workspace from '#models/workspace_model'
-import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
+import AuthenticationService from '#modules/iam/services/authentication_service'
 import AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
+import CreateWorkspacePayload from '#modules/workspace/payloads/create_workspace_payload'
 import InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
 import SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
 import WorkspaceService from '#modules/workspace/services/workspace_service'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import vine from '@vinejs/vine'
-import { Effect, Layer, pipe } from 'effect'
+import { Effect, Layer, pipe, Schema } from 'effect'
 
 export default class WorkspaceController {
   private telemetryScope = 'workspace-controller'
 
-  async createWorkspace({ auth, request, response }: FrameworkHttpContext) {
-    // Since auth middleware is applied, user will always be present
-    const user = await auth.use('web').user!
+  async createWorkspace(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
 
-    const workspaceData = request.body()
+      const workspaceService = yield* WorkspaceService
+      const authenticationService = yield* AuthenticationService
 
-    // Create the workspace
-    const workspace = await Workspace.create(workspaceData)
+      return yield* Effect.gen(function* () {
+        const payload = yield* CreateWorkspacePayload.fromRequest()
+        const user = yield* authenticationService.getAuthenticatedUser
 
-    // Attach the user as a member (assuming many-to-many relation)
-    await workspace.related('members').attach([user.id])
+        const workspace = yield* workspaceService.createWorkspace(payload, user)
 
-    // Check and update onboarding status
-    if (user.onboardingStatus === OnboardingStatus.PENDING) {
-      user.onboardingStatus = OnboardingStatus.COMPLETED
-      await user.save()
-    }
+        yield* responseContext.annotateMetadata({
+          workspaceId: workspace.id,
+          workspaceName: workspace.name,
+        })
 
-    return response.created({ workspace, onboardingStatus: user.onboardingStatus })
+        yield* responseContext.setMessage('Workspace created successfully')
+
+        return yield* pipe(
+          DataSource.known({
+            id: workspace.id,
+            name: workspace.name,
+          }),
+          UsingResponseEncoder(
+            Schema.Struct({
+              id: Schema.ULID,
+              name: Schema.String,
+            }),
+          ),
+        )
+      }).pipe(
+        telemetry.withTelemetrySpan('create_workspace'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
+    )
   }
 
   async setActiveWorkspace({ response, session, request }: FrameworkHttpContext) {
@@ -86,7 +111,6 @@ export default class WorkspaceController {
       const workspaceService = yield* WorkspaceService
 
       const payload = yield* AcceptWorkspaceInvitePayload.fromRequest()
-      console.log('Accept Invite Payload:', payload)
 
       const result = yield* workspaceService.acceptInvite(payload)
 
@@ -134,7 +158,6 @@ export default class WorkspaceController {
 
       const result = yield* workspaceService.getInviteDetails(payload)
 
-      console.log('Invite Details Result:', result)
       return ctx.response.status(200).json(result)
     })
 

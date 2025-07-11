@@ -1,5 +1,6 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
 import type AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
+import type CreateWorkspacePayload from '#modules/workspace/payloads/create_workspace_payload'
 import type InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
 import type SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
 import { CacheNamespace } from '#constants/cache_namespace'
@@ -29,6 +30,57 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
     const errorConversion = yield* ErrorConversionService
     const stringMixer = yield* StringMixerService
 
+    function createWorkspace(payload: ProcessedDataPayload<CreateWorkspacePayload>, user: User) {
+      return Effect.gen(function* () {
+        const existingWorkspace = yield* Effect.tryPromise({
+          try: () =>
+            user
+              .related('workspaces')
+              .query()
+              .where('name', payload.name)
+              .first(),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while checking for existing workspace.'),
+        })
+
+        if (existingWorkspace) {
+          return yield* new WorkspaceInviteException('A workspace with this name already exists.')
+        }
+
+        const workspace = yield* Effect.tryPromise({
+          try: () => Workspace.create({
+            name: payload.name,
+            website: payload.website,
+            logoUrl: payload.logo,
+            industry: payload.industry,
+          }),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while creating workspace.'),
+        })
+
+        yield* Effect.tryPromise({
+          try: () => user.related('workspaces').attach({
+            [workspace.id]: {
+              joined_at: new Date(),
+              status: WorkspaceMemberStatus.ACTIVE,
+              is_active: true,
+            },
+          }),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while adding user to workspace.'),
+        })
+
+        if (user.defaultWorkspaceId === null) {
+          yield* Effect.tryPromise({
+            try: () => user.merge({ defaultWorkspaceId: workspace.id }).save(),
+            catch: errorConversion.toUnknownError('Unexpected error occurred while setting default workspace.'),
+          })
+        }
+
+        return {
+          id: workspace.uid,
+          name: workspace.name,
+        }
+      })
+    }
+
     function sendWorkspaceInviteEmail(payload: ProcessedDataPayload<SendWorkspaceInviteEmailPayload>) {
       return Effect.gen(function* () {
         const { context } = yield* HttpContext
@@ -40,11 +92,15 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
         const workspace = yield* Effect.tryPromise({
           try: () => Workspace.query()
             .where('uid', currentActiveWorkspaceId)
-            .firstOrFail(),
+            .first(),
           catch: WorkspaceInviteException.fromUnknownError(
             'The workspace you are trying to invite users to was not found.',
           ),
         })
+
+        if (!workspace) {
+          return yield* new WorkspaceInviteException('Workspace not found.')
+        }
 
         yield* Effect.forEach(
           payload.invitees,
@@ -398,14 +454,6 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
           catch: errorConversion.toUnknownError('Failed to fetch user by email.'),
         })
 
-        console.log('Invite details:', {
-          workspaceId: cacheData.workspace_id,
-          senderId: cacheData.sender_id,
-          inviteeEmail: cacheData.invitee_email,
-          tokenValue: cacheData.token.value,
-          tokenKey: cacheData.token.key,
-        })
-
         const responseData = {
           workspace: {
             id: workspace.uid,
@@ -437,6 +485,7 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
     }
 
     return {
+      createWorkspace,
       sendWorkspaceInviteEmail,
       acceptInvite,
       getInviteDetails,

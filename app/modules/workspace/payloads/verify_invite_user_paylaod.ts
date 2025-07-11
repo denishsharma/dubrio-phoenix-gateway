@@ -32,7 +32,3 @@ export default class VerifyInviteUserPayload extends DataPayload('modules/worksp
     })
   },
 }) {}
-
-// body
-// param /$token
-// queryString ? /$k
