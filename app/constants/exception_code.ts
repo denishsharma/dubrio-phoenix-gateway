@@ -24,6 +24,8 @@ export const EXCEPTION_CODE = Enum({
 
   E_NO_ACTIVE_WORKSPACE: 'E_NO_ACTIVE_WORKSPACE',
   E_WORKSPACE_INVITE: 'E_WORKSPACE_INVITE',
+  E_WORKSPACE_NOT_FOUND: 'E_WORKSPACE_NOT_FOUND',
+  E_WORKSPACE_ACCESS_DENIED: 'E_WORKSPACE_ACCESS_DENIED',
 })
 
 export type ExceptionCode = InferValue<typeof EXCEPTION_CODE>
@@ -87,5 +89,11 @@ export const EXCEPTION_CODE_METADATA: Record<ExceptionCode, ExceptionCodeMetadat
   },
   [ExceptionCode.E_WORKSPACE_INVITE]: {
     message: 'Workspace invite error occurred. This could be due to an invalid invite token or other issues related to workspace invitations.',
+  },
+  [ExceptionCode.E_WORKSPACE_NOT_FOUND]: {
+    message: 'The requested workspace was not found.',
+  },
+  [ExceptionCode.E_WORKSPACE_ACCESS_DENIED]: {
+    message: 'You do not have access to this workspace.',
   },
 }
