@@ -6,6 +6,8 @@ import type SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/se
 import { CacheNamespace } from '#constants/cache_namespace'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import HttpContext from '#core/http/contexts/http_context'
+import { WithQueueJob } from '#core/queue_job/constants/with_queue_job'
+import QueueJobService from '#core/queue_job/services/queue_job_service'
 import SchemaError from '#core/schema/errors/schema_error'
 import User from '#models/user_model'
 import Workspace from '#models/workspace_model'
@@ -13,21 +15,22 @@ import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import AuthenticationService from '#modules/iam/services/authentication_service'
 import { WorkspaceMemberStatus } from '#modules/workspace/constants/workspace_member_status'
 import WorkspaceInviteException from '#modules/workspace/exceptions/workspace_invite_exception'
-import SendWorkspaceInviteJob from '#modules/workspace/jobs/send_workspace_invite_job'
+import SendWorkspaceInviteEmailJob from '#modules/workspace/jobs/send_workspace_invite_email_job'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import cache from '@adonisjs/cache/services/main'
-import queue from '@rlanz/bull-queue/services/main'
 import { Effect, pipe, Redacted, Schema } from 'effect'
 
 export default class WorkspaceService extends Effect.Service<WorkspaceService>()('@service/modules/workspace', {
   dependencies: [
     AuthenticationService.Default,
     ErrorConversionService.Default,
+    QueueJobService.Default,
     StringMixerService.Default,
   ],
   effect: Effect.gen(function* () {
     const authenticationService = yield* AuthenticationService
     const errorConversion = yield* ErrorConversionService
+    const queueJob = yield* QueueJobService
     const stringMixer = yield* StringMixerService
 
     function createWorkspace(payload: ProcessedDataPayload<CreateWorkspacePayload>, user: User) {
@@ -151,15 +154,18 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
             const inviteLink = `${process.env.APP_URL}/workspace/verify-invite/${tokenObj.value}?k=${tokenObj.key}`
 
-            yield* Effect.tryPromise({
-              try: () => queue.dispatch(SendWorkspaceInviteJob, {
-                email: inviteeEmail,
-                workspaceName: workspace.name,
-                inviterName: invitedByUser.firstName,
-                inviteLink,
-              }),
-              catch: errorConversion.toUnknownError('Unexpected error occurred while sending invite email.'),
-            })
+            yield* Effect.suspend(() => pipe(
+              WithQueueJob(
+                SendWorkspaceInviteEmailJob,
+                () => ({
+                  email: inviteeEmail,
+                  workspace_name: workspace.name,
+                  inviter_name: invitedByUser.firstName,
+                  invite_link: inviteLink,
+                }),
+              ),
+              queueJob.dispatch,
+            ))
           }),
         )
 

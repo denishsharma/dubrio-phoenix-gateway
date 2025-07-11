@@ -25,10 +25,8 @@ import { RetrieveWorkspaceUsingColumn } from '#shared/retrieval_strategies/works
 import { Effect, Layer, pipe, Schema } from 'effect'
 
 export default class WorkspaceController {
-  private telemetryScope = 'workspace-controller'
-
   async createWorkspace(ctx: FrameworkHttpContext) {
-    return await Effect.gen(this, function* () {
+    return await Effect.gen(function* () {
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
 
@@ -62,7 +60,7 @@ export default class WorkspaceController {
         )
       }).pipe(
         telemetry.withTelemetrySpan('create_workspace'),
-        telemetry.withScopedTelemetry(this.telemetryScope),
+        telemetry.withScopedTelemetry('workspace-controller'),
       )
     }).pipe(
       ApplicationRuntimeExecution.runPromise({ ctx }),
@@ -70,7 +68,7 @@ export default class WorkspaceController {
   }
 
   async setActiveWorkspace(ctx: FrameworkHttpContext) {
-    return await Effect.gen(this, function* () {
+    return await Effect.gen(function* () {
       const lucidModelRetrieval = yield* LucidModelRetrievalService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
@@ -124,7 +122,7 @@ export default class WorkspaceController {
         return WithEmptyResponseData()
       }).pipe(
         telemetry.withTelemetrySpan('set_active_workspace'),
-        telemetry.withScopedTelemetry(this.telemetryScope),
+        telemetry.withScopedTelemetry('workspace-controller'),
       )
     }).pipe(
       ApplicationRuntimeExecution.runPromise({ ctx }),
@@ -132,7 +130,8 @@ export default class WorkspaceController {
   }
 
   async sendWorkspaceInviteEmail(ctx: FrameworkHttpContext) {
-    return await Effect.gen(this, function* () {
+    return await Effect.gen(function* () {
+      const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
 
       const workspaceService = yield* WorkspaceService
@@ -142,12 +141,34 @@ export default class WorkspaceController {
 
         const result = yield* workspaceService.sendWorkspaceInviteEmail(payload)
 
-        return result
+        yield* responseContext.annotateMetadata({
+          invitees_count: payload.invitees.length,
+          success: result.success,
+        })
+
+        yield* responseContext.setMessage(`Successfully sent workspace invites to ${payload.invitees.length} recipients.`)
+
+        return yield* pipe(
+          DataSource.known({
+            message: `Successfully sent workspace invites to ${payload.invitees.length} recipients.`,
+            invitees: payload.invitees,
+            success: result.success,
+          }),
+          UsingResponseEncoder(
+            Schema.Struct({
+              message: Schema.String,
+              invitees: Schema.Array(Schema.String),
+              success: Schema.Boolean,
+            }),
+          ),
+        )
       }).pipe(
         telemetry.withTelemetrySpan('send_workspace_invite_email'),
-        telemetry.withScopedTelemetry(this.telemetryScope),
+        telemetry.withScopedTelemetry('workspace-controller'),
       )
-    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
+    )
   }
 
   async acceptInvite(ctx: FrameworkHttpContext) {
