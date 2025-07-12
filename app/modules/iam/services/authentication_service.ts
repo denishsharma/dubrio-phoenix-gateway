@@ -7,6 +7,7 @@ import type { Brand } from 'effect'
 import { CacheNamespace } from '#constants/cache_namespace'
 import { DataSource } from '#constants/data_source'
 import DatabaseService from '#core/database/services/database_service'
+import TypedEffectService from '#core/effect/services/typed_effect_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import HttpContext from '#core/http/contexts/http_context'
 import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_strategy'
@@ -41,6 +42,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
     LucidModelRetrievalService.Default,
     QueueJobService.Default,
     StringMixerService.Default,
+    TypedEffectService.Default,
     TelemetryService.Default,
   ],
   effect: Effect.gen(function* () {
@@ -49,6 +51,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
     const lucidModelRetrieval = yield* LucidModelRetrievalService
     const queueJob = yield* QueueJobService
     const stringMixer = yield* StringMixerService
+    const typedEffectService = yield* TypedEffectService
     const telemetry = yield* TelemetryService
 
     function authenticateWithCredentials(payload: ProcessedDataPayload<AuthenticationCredentialsPayload>) {
@@ -129,6 +132,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
           if (!user) { return Effect.fail(new UnauthorizedException()) }
           return Effect.succeed(user)
         }),
+        typedEffectService.overrideSuccessType<User>(),
       )
     }).pipe(telemetry.withTelemetrySpan('get_authenticated_user'))
 

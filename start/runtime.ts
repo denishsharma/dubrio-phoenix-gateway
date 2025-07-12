@@ -22,6 +22,7 @@ import { CORE_SCHEMA_MODULE_LAYER } from '#core/schema/schema_module'
 import { CORE_TELEMETRY_MODULE_LAYER } from '#core/telemetry/telemetry_module'
 import { CORE_VALIDATION_MODULE_LAYER } from '#core/validation/validation_module'
 import { IDENTITY_ACCESS_MANAGEMENT_MODULE_LAYER } from '#modules/iam/iam_module'
+import { SPACE_MODULE_LAYER } from '#modules/space/space_module'
 import { WORKSPACE_MODULE_LAYER } from '#modules/workspace/workspace_module'
 import { SHARED_COMMON_MODULE_LAYER } from '#shared/common/common_module'
 import { Layer, ManagedRuntime } from 'effect'
@@ -48,6 +49,7 @@ export const APPLICATION_RUNTIME_DEPENDENCIES_LAYER = Layer.mergeAll(
 
   IDENTITY_ACCESS_MANAGEMENT_MODULE_LAYER,
   WORKSPACE_MODULE_LAYER,
+  SPACE_MODULE_LAYER,
 )
 
 /**

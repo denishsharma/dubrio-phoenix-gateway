@@ -15,6 +15,7 @@ import '#modules/iam/routes/auth_route'
 import '#modules/channel/routes/channel_route'
 import '#modules/iam/routes/account_route'
 import '#modules/workspace/routes/workspace_route'
+import '#modules/space/routes/space_route'
 
 router.get('/', async (ctx) => {
   return await Effect.gen(function* () {

@@ -8,6 +8,7 @@ import EnumColumn from '#core/lucid/columns/enum'
 import LucidModelRelationshipError from '#core/lucid/errors/lucid_model_relationship_error'
 import LucidUtilityService from '#core/lucid/services/lucid_utility_service'
 import UsingLucidColumn from '#core/lucid/utils/using_lucid_column'
+import Space from '#models/space_model'
 import Workspace from '#models/workspace_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import { DbAccessTokensProvider } from '@adonisjs/auth/access_tokens'
@@ -66,6 +67,11 @@ export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
   // Relationships
   // ---------------------------
 
+  /**
+   * Many-to-many relationship with Workspaces.
+   * This relationship allows us to fetch all workspaces a user is a member of.
+   * The pivot table is 'workspace_members' and includes additional fields like 'invited_by', 'joined_at', 'is_active', and 'status'.
+   */
   @manyToMany(() => Workspace, {
     pivotTable: 'workspace_members',
     pivotColumns: [
@@ -77,6 +83,17 @@ export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
     pivotTimestamps: true,
   })
   declare workspaces: ManyToMany<typeof Workspace>
+
+  /**
+   * Many-to-many relationship with Spaces.
+   * This relationship allows us to fetch all spaces a user is a member of.
+   * The pivot table is 'space_members' and includes additional fields like 'role', 'is_active', 'invited_by', and 'joined_at'.
+   */
+  @manyToMany(() => Space, {
+    pivotTable: 'space_members',
+    pivotTimestamps: true,
+  })
+  declare spaces: ManyToMany<typeof Space>
 
   @belongsTo(() => Workspace, {
     foreignKey: 'default_workspace_id',

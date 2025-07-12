@@ -1,5 +1,7 @@
 import type { HttpContext as FrameworkHttpContext } from '@adonisjs/core/http'
 import { DataSource } from '#constants/data_source'
+import DatabaseTransaction from '#core/database/contexts/database_transaction_context'
+import DatabaseService from '#core/database/services/database_service'
 import ApplicationRuntimeExecution from '#core/effect/execution/application_runtime_execution'
 import TypedEffectService from '#core/effect/services/typed_effect_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
@@ -13,7 +15,6 @@ import LucidModelRetrievalService from '#core/lucid/services/lucid_model_retriev
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import VineValidationService from '#core/validation/services/vine_validation_service'
 import AuthenticationService from '#modules/iam/services/authentication_service'
-import WorkspaceNotFoundException from '#modules/workspace/exceptions/workspace_not_found_exception'
 import AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
 import CreateWorkspacePayload from '#modules/workspace/payloads/create_workspace_payload'
 import InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
@@ -21,7 +22,8 @@ import SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_wo
 import SetActiveWorkspace from '#modules/workspace/payloads/set_active_workspace'
 import WorkspaceService from '#modules/workspace/services/workspace_service'
 import StringMixerService from '#shared/common/services/string_mixer_service'
-import { RetrieveWorkspaceUsingColumn } from '#shared/retrieval_strategies/workspace_retrieval_strategy'
+import { RetrieveWorkspaceUsingIdentifier } from '#shared/retrieval_strategies/workspace_retrieval_strategy'
+import { WorkspaceIdentifier } from '#shared/schemas/workspace/workspace_attributes'
 import { Effect, Layer, pipe, Schema } from 'effect'
 
 export default class WorkspaceController {
@@ -73,47 +75,22 @@ export default class WorkspaceController {
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
 
-      // const authenticationService = yield* AuthenticationService
-      // const errorConversion = yield* ErrorConversionService
-
       return yield* Effect.gen(function* () {
         const payload = yield* SetActiveWorkspace.fromRequest()
-        // const user = yield* authenticationService.getAuthenticatedUser
 
         const workspace = yield* pipe(
           WithRetrievalStrategy(
-            RetrieveWorkspaceUsingColumn,
-            retrieve => retrieve('uid', payload.id),
+            RetrieveWorkspaceUsingIdentifier,
+            retrieve => retrieve(WorkspaceIdentifier.make(payload.uid)),
             {
               select: ['uid'],
               exception: {
                 throw: true,
-                message: `Workspace with ID '${payload.id}' does not exist.`,
               },
             },
           ),
           lucidModelRetrieval.retrieve,
         )
-
-        if (!workspace) {
-          return yield* new WorkspaceNotFoundException('Workspace not found.')
-        }
-
-        // const userHasAccess = yield* Effect.tryPromise({
-        //   try: async () => {
-        //     const result = await db
-        //       .from('user_workspaces')
-        //       .where('user_id', user.id)
-        //       .where('workspace_id', workspace.id)
-        //       .first()
-        //     return result !== null
-        //   },
-        //   catch: errorConversion.toUnknownError('Unexpected error checking user access to workspace'),
-        // })
-
-        // if (!userHasAccess) {
-        //   return yield* new WorkspaceAccessDeniedException('You do not have access to this workspace.')
-        // }
 
         ctx.session.put('active_workspace', workspace.uid)
 
@@ -124,13 +101,12 @@ export default class WorkspaceController {
         telemetry.withTelemetrySpan('set_active_workspace'),
         telemetry.withScopedTelemetry('workspace-controller'),
       )
-    }).pipe(
-      ApplicationRuntimeExecution.runPromise({ ctx }),
-    )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
   }
 
   async sendWorkspaceInviteEmail(ctx: FrameworkHttpContext) {
     return await Effect.gen(function* () {
+      const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
 
@@ -163,6 +139,7 @@ export default class WorkspaceController {
           ),
         )
       }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('send_workspace_invite_email'),
         telemetry.withScopedTelemetry('workspace-controller'),
       )

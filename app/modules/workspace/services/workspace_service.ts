@@ -4,8 +4,10 @@ import type CreateWorkspacePayload from '#modules/workspace/payloads/create_work
 import type InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
 import type SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
 import { CacheNamespace } from '#constants/cache_namespace'
+import DatabaseService from '#core/database/services/database_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
-import HttpContext from '#core/http/contexts/http_context'
+import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_strategy'
+import LucidModelRetrievalService from '#core/lucid/services/lucid_model_retrieval_service'
 import { WithQueueJob } from '#core/queue_job/constants/with_queue_job'
 import QueueJobService from '#core/queue_job/services/queue_job_service'
 import SchemaError from '#core/schema/errors/schema_error'
@@ -17,21 +19,27 @@ import { WorkspaceMemberStatus } from '#modules/workspace/constants/workspace_me
 import WorkspaceInviteException from '#modules/workspace/exceptions/workspace_invite_exception'
 import SendWorkspaceInviteEmailJob from '#modules/workspace/jobs/send_workspace_invite_email_job'
 import StringMixerService from '#shared/common/services/string_mixer_service'
+import { RetrieveActiveWorkspace } from '#shared/retrieval_strategies/workspace_retrieval_strategy'
 import cache from '@adonisjs/cache/services/main'
 import { Effect, pipe, Redacted, Schema } from 'effect'
 
 export default class WorkspaceService extends Effect.Service<WorkspaceService>()('@service/modules/workspace', {
   dependencies: [
+    DatabaseService.Default,
     AuthenticationService.Default,
     ErrorConversionService.Default,
+    LucidModelRetrievalService.Default,
     QueueJobService.Default,
     StringMixerService.Default,
   ],
   effect: Effect.gen(function* () {
-    const authenticationService = yield* AuthenticationService
+    const database = yield* DatabaseService
     const errorConversion = yield* ErrorConversionService
+    const lucidModelRetrieval = yield* LucidModelRetrievalService
     const queueJob = yield* QueueJobService
     const stringMixer = yield* StringMixerService
+
+    const authenticationService = yield* AuthenticationService
 
     function createWorkspace(payload: ProcessedDataPayload<CreateWorkspacePayload>, user: User) {
       return Effect.gen(function* () {
@@ -86,24 +94,32 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
     function sendWorkspaceInviteEmail(payload: ProcessedDataPayload<SendWorkspaceInviteEmailPayload>) {
       return Effect.gen(function* () {
-        const { context } = yield* HttpContext
-        const ctx = yield* context
-
-        const currentActiveWorkspaceId = ctx.activeWorkspaceId
         const invitedByUser = yield* authenticationService.getAuthenticatedUser
+        const { trx } = yield* database.requireTransaction()
+        // const workspace = yield* Effect.tryPromise({
+        //   try: () => Workspace.query()
+        //     .where('uid', currentActiveWorkspaceId)
+        //     .first(),
+        //   catch: WorkspaceInviteException.fromUnknownError(
+        //     'The workspace you are trying to invite users to was not found.',
+        //   ),
+        // })
 
-        const workspace = yield* Effect.tryPromise({
-          try: () => Workspace.query()
-            .where('uid', currentActiveWorkspaceId)
-            .first(),
-          catch: WorkspaceInviteException.fromUnknownError(
-            'The workspace you are trying to invite users to was not found.',
+        const workspace = yield* pipe(
+          WithRetrievalStrategy(
+            RetrieveActiveWorkspace,
+            retrieve => retrieve(),
+            {
+              exception: {
+                throw: true,
+              },
+              query: {
+                client: trx,
+              },
+            },
           ),
-        })
-
-        if (!workspace) {
-          return yield* new WorkspaceInviteException('Workspace not found.')
-        }
+          lucidModelRetrieval.retrieve,
+        )
 
         yield* Effect.forEach(
           payload.invitees,
@@ -170,7 +186,9 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
         )
 
         return { success: true, message: 'Processed all invitees.' }
-      })
+      }).pipe(
+        Effect.provide(DatabaseService.Default),
+      )
     }
 
     function acceptInvite(payload: ProcessedDataPayload<AcceptWorkspaceInvitePayload>) {

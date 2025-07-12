@@ -6,6 +6,7 @@ const AuthenticationController = () => import('#modules/iam/controllers/authenti
 router.group(() => {
   router.post('/register', [AuthenticationController, 'registerUser']).middleware(middleware.guest())
   router.post('/login', [AuthenticationController, 'authenticateWithCredentials']).middleware(middleware.guest())
+  router.post('/logout', [AuthenticationController, 'logout']).middleware(middleware.auth())
 
   router.get('reset-password', [AuthenticationController, 'sendPasswordResetEmail']).middleware(middleware.guest())
   router.post('reset-password', [AuthenticationController, 'resetPassword']).middleware(middleware.guest())
