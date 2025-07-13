@@ -1,6 +1,7 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
 import type { SpaceModelFields } from '#models/space_model'
 import type CreateSpacePayload from '#modules/space/payloads/create_space_payload'
+import type FetchSpaceByIdentifier from '#modules/space/payloads/fetch_space_by_identifier'
 import DatabaseService from '#core/database/services/database_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_strategy'
@@ -8,6 +9,7 @@ import LucidModelRetrievalService from '#core/lucid/services/lucid_model_retriev
 import QueueJobService from '#core/queue_job/services/queue_job_service'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import AuthenticationService from '#modules/iam/services/authentication_service'
+import SpaceAccessDeniedException from '#modules/space/exception/space_access_denied_exception'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import { RetrieveActiveWorkspace } from '#shared/retrieval_strategies/workspace_retrieval_strategy'
 import { Effect, pipe } from 'effect'
@@ -141,6 +143,58 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
       })
     }
 
+    function fetchSpaceByIdentifier(payload: ProcessedDataPayload<FetchSpaceByIdentifier>) {
+      return Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+
+        /**
+         * Retrieve the active workspace.
+         * If no active workspace is found, throw an error.
+         */
+        const workspace = yield* pipe(
+          WithRetrievalStrategy(
+            RetrieveActiveWorkspace,
+            retrieve => retrieve(),
+            {
+              exception: {
+                throw: true,
+              },
+              query: {
+                client: trx,
+              },
+            },
+          ),
+          lucidModelRetrieval.retrieve,
+        )
+
+        /**
+         * Fetch the space by identifier from the active workspace.
+         */
+        const space = yield* Effect.tryPromise({
+          try: () => workspace
+            .related('spaces')
+            .query()
+            .where('uid', payload.identifier)
+            .andWhere('workspace_id', workspace.id)
+            .first(),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space by identifier.'),
+        }).pipe(telemetry.withTelemetrySpan('fetch_space_by_identifier'))
+
+        if (!space) {
+          throw new SpaceAccessDeniedException(`Space with identifier ${payload.identifier} not found in the active workspace.`)
+        }
+
+        const formattedSpaceData = {
+          identifier: space.uid,
+          name: space.name,
+          tag: space.tag,
+          avatarUrl: space.avatarUrl,
+          createdAt: space.createdAt.toISO(),
+        }
+
+        return formattedSpaceData
+      })
+    }
     return {
       /**
        * Create a space using the provided payload and for the authenticated user
@@ -158,6 +212,7 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
        * This is useful for displaying all spaces in the UI.
        */
       listAllSpaces,
+      fetchSpaceByIdentifier,
     }
   }),
 }) {}

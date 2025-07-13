@@ -8,6 +8,7 @@ import HttpResponseContextService from '#core/http/services/http_response_contex
 import UsingResponseEncoder from '#core/http/utils/using_response_encoder'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import CreateSpacePayload from '#modules/space/payloads/create_space_payload'
+import FetchSpaceByIdentifier from '#modules/space/payloads/fetch_space_by_identifier'
 import SpaceService from '#modules/space/services/space_service'
 import { Effect, pipe, Schema } from 'effect'
 
@@ -76,6 +77,42 @@ export default class SpaceController {
       }).pipe(
         Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('list_all_spaces'),
+        telemetry.withScopedTelemetry('space-controller'),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
+    )
+  }
+
+  async fetchSpaceByIdentifier(ctx: FrameworkHttpContext) {
+    return await Effect.gen(function* () {
+      const database = yield* DatabaseService
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
+
+      const spaceService = yield* SpaceService
+
+      return yield* Effect.gen(function* () {
+        const payload = yield* FetchSpaceByIdentifier.fromRequest()
+        const space = yield* spaceService.fetchSpaceByIdentifier(payload)
+
+        yield* responseContext.setMessage(`Successfully retrieved space: ${space.name}`)
+
+        return yield* pipe(
+          DataSource.known(space),
+          UsingResponseEncoder(
+            Schema.Struct({
+              identifier: Schema.ULID,
+              name: Schema.String,
+              tag: Schema.String,
+              avatarUrl: Schema.Union(Schema.String, Schema.Null),
+              createdAt: Schema.Union(Schema.String, Schema.Null),
+            }),
+          ),
+        )
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('fetch_space_by_identifier'),
         telemetry.withScopedTelemetry('space-controller'),
       )
     }).pipe(
