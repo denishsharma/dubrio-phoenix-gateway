@@ -2,6 +2,7 @@ import type { ProcessedDataPayload } from '#core/data_payload/factories/data_pay
 import type { SpaceModelFields } from '#models/space_model'
 import type CreateSpacePayload from '#modules/space/payloads/create_space_payload'
 import type FetchSpaceByIdentifier from '#modules/space/payloads/fetch_space_by_identifier'
+import type UpdateSpacePayload from '#modules/space/payloads/update_space_payload'
 import DatabaseService from '#core/database/services/database_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_strategy'
@@ -195,6 +196,79 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
         return formattedSpaceData
       })
     }
+
+    function updateSpace(payload: ProcessedDataPayload<UpdateSpacePayload>) {
+      return Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+
+        /**
+         * Retrieve the active workspace.
+         * If no active workspace is found, throw an error.
+         */
+        const workspace = yield* pipe(
+          WithRetrievalStrategy(
+            RetrieveActiveWorkspace,
+            retrieve => retrieve(),
+            {
+              exception: {
+                throw: true,
+              },
+              query: {
+                client: trx,
+              },
+            },
+          ),
+          lucidModelRetrieval.retrieve,
+        )
+
+        /**
+         * Fetch the space by identifier from the active workspace.
+         */
+        const space = yield* Effect.tryPromise({
+          try: () => workspace
+            .related('spaces')
+            .query()
+            .where('uid', payload.identifier)
+            .andWhere('workspace_id', workspace.id)
+            .first(),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space for update.'),
+        }).pipe(telemetry.withTelemetrySpan('fetch_space_for_update'))
+
+        if (!space) {
+          throw new SpaceAccessDeniedException(`Space with identifier ${payload.identifier} not found in the active workspace.`)
+        }
+
+        /**
+         * Update the space with the provided data.
+         */
+        if (payload.mode === 'put') {
+          space.name = payload.name
+          space.tag = payload.tag
+          space.avatarUrl = payload.avatarUrl ?? null
+        } else if (payload.mode === 'patch') {
+          if (payload.data.name) {
+            space.name = payload.data.name
+          }
+          if (payload.data.tag) {
+            space.tag = payload.data.tag
+          }
+          if (payload.data.avatarUrl) {
+            space.avatarUrl = payload.data.avatarUrl
+          }
+        }
+
+        /**
+         * Save the updated space.
+         */
+        yield* Effect.tryPromise({
+          try: () => space.save(),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while updating the space.'),
+        }).pipe(telemetry.withTelemetrySpan('update_space'))
+
+        return space
+      })
+    }
+
     return {
       /**
        * Create a space using the provided payload and for the authenticated user
@@ -213,6 +287,7 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
        */
       listAllSpaces,
       fetchSpaceByIdentifier,
+      updateSpace,
     }
   }),
 }) {}

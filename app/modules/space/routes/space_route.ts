@@ -5,6 +5,9 @@ const SpaceController = () => import('#modules/space/controllers/space_controlle
 
 router.group(() => {
   router.post('/', [SpaceController, 'create']).middleware([middleware.auth(), middleware.activeWorkspace()])
+
   router.get('/', [SpaceController, 'listAllSpaces']).middleware([middleware.auth(), middleware.activeWorkspace()])
   router.get('/fetchByIdentifier', [SpaceController, 'fetchSpaceByIdentifier']).middleware([middleware.auth(), middleware.activeWorkspace()])
+
+  router.post('/update', [SpaceController, 'update']).middleware([middleware.auth(), middleware.activeWorkspace()])
 }).prefix('spaces')
