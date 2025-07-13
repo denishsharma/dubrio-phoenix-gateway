@@ -340,8 +340,31 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
        * This is useful for displaying all spaces in the UI.
        */
       listAllSpaces,
+
+      /**
+       * Fetch a space by its identifier.
+       * This will return a single space object with the identifier, name, tag, avatarUrl, and createdAt.
+       *
+       * @param payload - The payload containing the space identifier.
+       */
       fetchSpaceByIdentifier,
+
+      /**
+       * Update a space with the provided payload.
+       * This will contain patch and put semantics
+       * - For patch, it will update only the fields that are provided in the payload.
+       * - For put, it will update all fields with the provided data.
+       *
+       * @param payload - The payload containing the space identifier, mode['patch' | 'put'], and the data to update.
+       */
       updateSpace,
+
+      /**
+       * Delete a space by its identifier.
+       * This will delete the space from the active workspace.
+       *
+       * @param payload - The payload containing the space identifier.
+       */
       deleteSpace,
     }
   }),

@@ -95,7 +95,15 @@ export default class SpaceController {
       const spaceService = yield* SpaceService
 
       return yield* Effect.gen(function* () {
+        /**
+         * Take identifier from the request query string and fetch the space by identifier.
+         */
         const payload = yield* FetchSpaceByIdentifier.fromRequest()
+
+        /**
+         * Get the space refactor data such as identifier, name, tag, avatarUrl, and createdAt.
+         * This will return a single space object with the above fields.
+         */
         const space = yield* spaceService.fetchSpaceByIdentifier(payload)
 
         yield* responseContext.setMessage(`Successfully retrieved space: ${space.name}`)
