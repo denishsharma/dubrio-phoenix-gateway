@@ -92,7 +92,7 @@ export type SpaceModelFields = CamelCasedProperties<{
 }>
 
 /**
- * Type for mapping the fields of the Space model to snake_case
+ * Type for mapping the fields of the Workspace model to snake_case
  * helping with the database column names.
  *
  * This is used to ensure that the fields are correctly

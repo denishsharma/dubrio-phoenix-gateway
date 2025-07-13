@@ -90,6 +90,57 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
       }).pipe(telemetry.withTelemetrySpan('create_space'))
     }
 
+    function listAllSpaces() {
+      return Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+        /**
+         * Retrieve the active workspace.
+         * If no active workspace is found, throw an error.
+         */
+        const workspace = yield* pipe(
+          WithRetrievalStrategy(
+            RetrieveActiveWorkspace,
+            retrieve => retrieve(),
+            {
+              exception: {
+                throw: true,
+              },
+              query: {
+                client: trx,
+              },
+            },
+          ),
+          lucidModelRetrieval.retrieve,
+        )
+
+        /**
+         * List all spaces for the active workspace.
+         */
+        const spaces = yield* Effect.tryPromise({
+          try: () => workspace
+            .related('spaces')
+            .query(),
+          catch: errorConversion.toUnknownError('Unexpected error occurred while listing all spaces.'),
+        }).pipe(telemetry.withTelemetrySpan('list_all_spaces_for_active_workspace'))
+
+        /**
+         * Format the spaces to return only the required fields.
+         */
+        const formattedSpaces = yield* Effect.forEach(
+          spaces,
+          space => Effect.sync(() => ({
+            identifier: space.uid,
+            name: space.name,
+            tag: space.tag,
+            avatarUrl: space.avatarUrl,
+            createdAt: space.createdAt.toISO(),
+          })),
+        )
+
+        return formattedSpaces
+      })
+    }
+
     return {
       /**
        * Create a space using the provided payload and for the authenticated user
@@ -100,6 +151,13 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
        * @param payload - The payload containing the space details.
        */
       createSpace,
+
+      /**
+       * List all spaces for the active workspace.
+       * This will return an array of spaces with their identifier, name, tag, avatarUrl, and createdAt.
+       * This is useful for displaying all spaces in the UI.
+       */
+      listAllSpaces,
     }
   }),
 }) {}
