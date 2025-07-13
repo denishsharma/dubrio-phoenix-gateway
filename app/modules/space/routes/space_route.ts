@@ -10,4 +10,6 @@ router.group(() => {
   router.get('/fetchByIdentifier', [SpaceController, 'fetchSpaceByIdentifier']).middleware([middleware.auth(), middleware.activeWorkspace()])
 
   router.post('/update', [SpaceController, 'update']).middleware([middleware.auth(), middleware.activeWorkspace()])
+
+  router.delete('/', [SpaceController, 'delete']).middleware([middleware.auth(), middleware.activeWorkspace()])
 }).prefix('spaces')

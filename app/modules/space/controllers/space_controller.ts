@@ -8,6 +8,7 @@ import HttpResponseContextService from '#core/http/services/http_response_contex
 import UsingResponseEncoder from '#core/http/utils/using_response_encoder'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import CreateSpacePayload from '#modules/space/payloads/create_space_payload'
+import DeleteSpacePayload from '#modules/space/payloads/delete_space_payload'
 import FetchSpaceByIdentifier from '#modules/space/payloads/fetch_space_by_identifier'
 import UpdateSpacePayload from '#modules/space/payloads/update_space_payload'
 import SpaceService from '#modules/space/services/space_service'
@@ -147,6 +148,38 @@ export default class SpaceController {
       }).pipe(
         Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('update_space'),
+        telemetry.withScopedTelemetry('space-controller'),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
+    )
+  }
+
+  async delete(ctx: FrameworkHttpContext) {
+    return await Effect.gen(function* () {
+      const database = yield* DatabaseService
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
+
+      const spaceService = yield* SpaceService
+
+      return yield* Effect.gen(function* () {
+        const payload = yield* DeleteSpacePayload.fromRequest()
+        const deletedSpace = yield* spaceService.deleteSpace(payload)
+
+        responseContext.setMessage(`Successfully deleted space: ${deletedSpace.name}`)
+
+        return yield* pipe(
+          DataSource.known(deletedSpace),
+          UsingResponseEncoder(
+            Schema.Struct({
+              name: Schema.String,
+            }),
+          ),
+        )
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('delete_space'),
         telemetry.withScopedTelemetry('space-controller'),
       )
     }).pipe(
