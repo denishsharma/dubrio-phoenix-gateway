@@ -1,8 +1,9 @@
+import { DatabaseTableName } from '#constants/database/database_table_name'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
-  protected tableName = 'users'
+  protected tableName = DatabaseTableName.USERS
 
   async up() {
     this.schema.createTable(this.tableName, (table) => {

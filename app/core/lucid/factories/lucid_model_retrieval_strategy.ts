@@ -9,8 +9,8 @@ import { RetrievalStrategyInstance } from '#core/lucid/constants/retrieval_strat
 import is from '@adonisjs/core/helpers/is'
 import stringHelpers from '@adonisjs/core/helpers/string'
 import { defu } from 'defu'
-import { Effect, Match, Option, pipe } from 'effect'
-import { defaultTo, omit } from 'lodash-es'
+import { Array, Effect, flow, Match, Option, pipe, Record } from 'effect'
+import { merge, omit } from 'lodash-es'
 
 /**
  * A unique symbol used to mark the returned type of the strategy function
@@ -264,6 +264,17 @@ function base<
         } satisfies Partial<StrategyOptionsWithQuery<L>>,
       )
 
+      /**
+       * Ensures that the select fields are valid and includes the default 'id' field.
+       * This is used to ensure that the query always selects the 'id' field
+       * and any other fields that are specified in the options.
+       */
+      const ensureSelect = Match.value((options as StrategyOptionsWithQuery<Record<string, unknown>>).select).pipe(
+        Match.when((select: unknown) => Array.isArray(select), flow(Array.prepend('id'), Array.dedupe)),
+        Match.when((select: unknown) => is.object(select), flow(Record.set('id', 'id'))),
+        Match.orElse(() => '*' as const),
+      ) as '*' | (keyof L)[] | Record<string, keyof L | (string & {}) | (ReturnType<Database['knexRawQuery']> & {})>
+
       const query = pipe(
         Match.value(resolvedOptions.trashed).pipe(
           Match.when(
@@ -286,11 +297,11 @@ function base<
           if (is.nullOrUndefined((options as StrategyOptionsWithQuery<Record<string, unknown>>).select)) {
             return q
           }
-          return q.select(defaultTo((options as StrategyOptionsWithQuery<Record<string, unknown>>).select, '*') as string)
+          return q.select(ensureSelect as string)
         },
       )
 
-      return providedStrategy(withStrategy, query as ModelQueryBuilderContract<M, K>, omit(options, 'query')) as ReturnType<S>
+      return providedStrategy(withStrategy, query as ModelQueryBuilderContract<M, K>, merge({}, omit(options, 'query'), { select: ensureSelect })) as ReturnType<S>
     }
 
     /**

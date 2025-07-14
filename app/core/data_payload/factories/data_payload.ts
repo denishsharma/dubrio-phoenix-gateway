@@ -2,12 +2,12 @@ import type HttpContext from '#core/http/contexts/http_context'
 import type HttpContextUnavailableError from '#core/http/errors/http_context_unavailable_error'
 import type ValidationException from '#core/validation/exceptions/validation_exception'
 import type { VineValidator } from '@vinejs/vine'
-import type { Infer, SchemaTypes, ValidationOptions } from '@vinejs/vine/types'
+import type { Infer, InferInput, SchemaTypes, ValidationOptions } from '@vinejs/vine/types'
 import type { Brand, Tracer } from 'effect'
 import type { Draft } from 'mutative'
 import type { Jsonifiable } from 'type-fest'
 import { DataSource } from '#constants/data_source'
-import { INTERNALS_MARKER, KIND_MARKER } from '#constants/proto_marker'
+import { INTERNALS_MARKER, KIND_MARKER, TAG_MARKER } from '#constants/proto_marker'
 import { DataPayloadKind } from '#core/data_payload/constants/data_payload_kind'
 import { DATA_PAYLOAD_MARKER } from '#core/data_payload/constants/data_payload_marker'
 import DataPayloadInvalidDataSourceError from '#core/data_payload/errors/data_payload_invalid_data_source_error'
@@ -19,6 +19,7 @@ import HttpRequestService from '#core/http/services/http_request_service'
 import JsonService from '#core/json/services/json_service'
 import SchemaError from '#core/schema/errors/schema_error'
 import VineValidationService from '#core/validation/services/vine_validation_service'
+import NoSuchElementError from '#errors/no_such_element_error'
 import is from '@adonisjs/core/helpers/is'
 import { defu } from 'defu'
 import { Effect, Inspectable, Option, pipe, Ref, Schema } from 'effect'
@@ -33,7 +34,7 @@ import { create } from 'mutative'
  * These keys are used to prevent the user from
  * accidentally overwriting the internal state of the data payload class.
  */
-type ForbiddenKeys = 'process' | 'payload' | 'update' | 'toString' | 'toJSON' | 'toInspectable'
+type ForbiddenKeys = 'process' | 'payload' | 'update' | 'toString' | 'toJSON' | 'toInspectable' | 'original' | 'validated' | 'decoded' | 'mapped' | 'schema' | 'validator'
 
 /**
  * The options for customizing the data payload process
@@ -57,6 +58,7 @@ type ProcessDataSource<K extends DataPayloadKind, S extends SchemaTypes, I> = Da
  * store the configuration and state of the data payload.
  */
 interface DataPayloadInternals<
+  K extends DataPayloadKind,
   A extends (object),
   I,
   S extends SchemaTypes,
@@ -93,10 +95,30 @@ interface DataPayloadInternals<
    */
   data: {
     /**
-     * The validated request data after the payload
-     * has been validated via the validator as well as schema.
+     * The encoded data payload that is used to store the
+     * original payload data before it is validated.
      */
-    validated: Option.Option<A>;
+    original: Option.Option<K extends typeof DataPayloadKind.REQUEST ? InferInput<S> : I>;
+
+    /**
+     * The validated request data after the payload
+     * has been validated via the validator.
+     */
+    validated: Option.Option<Infer<S>>;
+
+    /**
+     * The mapped data payload that is used to store the
+     * original payload data after it has been validated
+     * and mapped for the schema validation.
+     */
+    mapped: Option.Option<I>;
+
+    /**
+     * The decoded data payload that is used to store the
+     * original payload data after it has been validated
+     * and decoded via the schema.
+     */
+    decoded: Option.Option<A>;
   };
 }
 
@@ -185,13 +207,69 @@ function base<
      * The internals of the data payload class that are used to
      * store the configuration and state of the data payload.
      */
-    readonly [INTERNALS_MARKER]: DataPayloadInternals<A, I, S, M, R, EM, RM> = {
+    readonly [INTERNALS_MARKER]: DataPayloadInternals<K, A, I, S, M, R, EM, RM> = {
       schema: factoryOptions.schema,
       validator: (factoryOptions as DataPayloadFactoryOptions<typeof DataPayloadKind.REQUEST, A, I, S, M, R, EM, RM>).validator,
       mapToSchema: (factoryOptions as DataPayloadFactoryOptions<typeof DataPayloadKind.REQUEST, A, I, S, M, R, EM, RM>).mapToSchema,
       data: {
+        original: Option.none(),
         validated: Option.none(),
+        mapped: Option.none(),
+        decoded: Option.none(),
       },
+    }
+
+    /**
+     * Returns the encoded data payload that is used to store the
+     * original payload data before it is validated.
+     */
+    get original() {
+      return Effect.gen(this, function* () {
+        return yield* pipe(
+          this[INTERNALS_MARKER].data.original,
+          Effect.catchTag('NoSuchElementException', error => new NoSuchElementError(`Unexpected error while accessing the original data payload for tag ${this._tag}.`, { cause: error })),
+        )
+      })
+    }
+
+    /**
+     * Returns the validated data payload that is used to store the
+     * validated request data after the payload has been validated.
+     */
+    get validated() {
+      return Effect.gen(this, function* () {
+        return yield* pipe(
+          this[INTERNALS_MARKER].data.validated,
+          Effect.catchTag('NoSuchElementException', error => new NoSuchElementError(`Unexpected error while accessing the validated data payload for tag ${this._tag}.`, { cause: error })),
+        )
+      })
+    }
+
+    /**
+     * Returns the mapped data payload that is used to store the
+     * original payload data after it has been validated and mapped
+     * for the schema validation.
+     */
+    get mapped() {
+      return Effect.gen(this, function* () {
+        return yield* pipe(
+          this[INTERNALS_MARKER].data.mapped,
+          Effect.catchTag('NoSuchElementException', error => new NoSuchElementError(`Unexpected error while accessing the mapped data payload for tag ${this._tag}.`, { cause: error })),
+        )
+      })
+    }
+
+    /**
+     * Returns the decoded data payload that is used to store the
+     * original payload data after it has been validated and decoded via the schema.
+     */
+    get decoded() {
+      return Effect.gen(this, function* () {
+        return yield* pipe(
+          this[INTERNALS_MARKER].data.decoded,
+          Effect.catchTag('NoSuchElementException', error => new NoSuchElementError(`Unexpected error while accessing the decoded data payload for tag ${this._tag}.`, { cause: error })),
+        )
+      })
     }
 
     /**
@@ -230,6 +308,11 @@ function base<
             )
 
             /**
+             * Store the original data payload.
+             */
+            this[INTERNALS_MARKER].data.original = Option.some(sourceData as K extends typeof DataPayloadKind.REQUEST ? InferInput<S> : I)
+
+            /**
              * Store the data in a reference so that it can be
              * accessed later.
              */
@@ -255,19 +338,46 @@ function base<
                 )(data)
               }))
 
+              /**
+               * Store the validated data payload.
+               */
+              this[INTERNALS_MARKER].data.validated = Option.some(validated)
+
+              /**
+               * Map the validated data to the schema.
+               */
               const mapToSchema = defaultTo(this[INTERNALS_MARKER].mapToSchema, (data: Infer<S>) => Effect.succeed(data))
               const mapped = yield* mapToSchema(validated)
 
+              /**
+               * Store the mapped data payload.
+               */
+              this[INTERNALS_MARKER].data.mapped = Option.some(mapped)
+
+              /**
+               * Update the data reference with the mapped data
+               * to ensure that the data is in the correct format
+               * for the schema validation.
+               */
               yield* Ref.set(dataRef, mapped)
             }
 
             return yield* Effect.suspend(() =>
-              Effect.gen(this, function* () {
-                const data = yield* dataRef.get
-                return yield* Schema.decodeUnknown(this[INTERNALS_MARKER].schema, { errors: 'all' })(data).pipe(
-                  SchemaError.fromParseError(`Unexpected error while decoding the data payload with tag ${this._tag}.`),
-                )
-              }),
+              pipe(
+                Effect.gen(this, function* () {
+                  const data = yield* dataRef.get
+                  return yield* Schema.decodeUnknown(this[INTERNALS_MARKER].schema, { errors: 'all' })(data).pipe(
+                    SchemaError.fromParseError(`Unexpected error while decoding the data payload with tag ${this._tag}.`),
+                  )
+                }),
+
+                /**
+                 * Store the decoded data payload.
+                 */
+                Effect.tap(decoded => Effect.sync(() => {
+                  this[INTERNALS_MARKER].data.decoded = Option.some(decoded)
+                })),
+              ),
             )
           }).pipe(
             Effect.map((data) => {
@@ -381,7 +491,7 @@ type BaseInstance<
   R,
   EM,
   RM,
-> = InstanceType<ReturnType<typeof base<T, K, A, I, S, M, R, EM, RM>>>
+> = K extends typeof DataPayloadKind.REQUEST ? InstanceType<ReturnType<typeof base<T, K, A, I, S, M, R, EM, RM>>> : Omit<InstanceType<ReturnType<typeof base<T, K, A, I, S, M, R, EM, RM>>>, 'validated' | 'mapped'>
 
 /**
  * Options for the `fromSource` and `fromRequest` methods of the data payload class.
@@ -417,6 +527,11 @@ export function DataPayload<T extends string>(tag: T) {
     RM = never,
   >(factoryOptions: DataPayloadFactoryOptions<K, A, I, S, M, R, EM, RM>) => {
     class BaseDataPayload extends base<RT, K, A, I, S, M, R, EM, RM>(resolvedTag, factoryOptions) {
+      static get [DATA_PAYLOAD_MARKER]() { return DATA_PAYLOAD_MARKER }
+      static get [TAG_MARKER]() { return resolvedTag }
+
+      static get schema() { return factoryOptions.schema as Schema.Schema<A, I, R> }
+
       /**
        * Process the data payload with the given options and data source,
        * and return the processed data payload.
@@ -426,7 +541,7 @@ export function DataPayload<T extends string>(tag: T) {
        *
        * @param options - The options used to process the data payload.
        */
-      static fromSource<V extends BaseDataPayload>(this: new() => V, options?: FromOptions<K, M>) {
+      static fromSource<V extends BaseDataPayload>(this: new() => K extends typeof DataPayloadKind.REQUEST ? V : Omit<V, 'validated' | 'mapped'>, options?: FromOptions<K, M>) {
         /**
          * @param source - The data source that is used to process the data payload.
          */
@@ -451,7 +566,7 @@ export function DataPayload<T extends string>(tag: T) {
        *
        * @param options - The options used to process the data payload.
        */
-      static fromRequest<V extends BaseDataPayload>(this: new() => V, options?: FromOptions<K, M>) {
+      static fromRequest<V extends BaseDataPayload>(this: new() => K extends typeof DataPayloadKind.REQUEST ? V : Omit<V, 'validated' | 'mapped'>, options?: FromOptions<K, M>) {
         return Effect.gen(this, function* () {
           return yield* Effect.gen(this, function* () {
             const request = yield* HttpRequestService
@@ -473,8 +588,14 @@ export function DataPayload<T extends string>(tag: T) {
     ;(BaseDataPayload as any).__tag__ = resolvedTag
 
     return BaseDataPayload as unknown as
-      & (new() => Brand.Branded<InstanceType<typeof BaseDataPayload>, typeof DATA_PAYLOAD_MARKER>)
-      & { readonly fromSource: typeof BaseDataPayload['fromSource']; readonly [DATA_PAYLOAD_MARKER]: typeof DATA_PAYLOAD_MARKER }
+      & (new() => Brand.Branded<K extends typeof DataPayloadKind.REQUEST ? InstanceType<typeof BaseDataPayload> : Omit<InstanceType<typeof BaseDataPayload>, 'validated' | 'mapped'>, typeof DATA_PAYLOAD_MARKER>)
+      & {
+        readonly [DATA_PAYLOAD_MARKER]: typeof DATA_PAYLOAD_MARKER;
+        readonly [TAG_MARKER]: RT;
+        readonly schema: Schema.Schema<A, I, R>;
+        readonly fromSource: typeof BaseDataPayload['fromSource'];
+        readonly [DATA_PAYLOAD_MARKER]: typeof DATA_PAYLOAD_MARKER;
+      }
       & (K extends typeof DataPayloadKind.REQUEST ? { readonly fromRequest: typeof BaseDataPayload['fromRequest'] } : object)
   }
 }
@@ -511,6 +632,9 @@ export type DataPayloadClass<
   RM,
 > = (new () => DataPayload<T, K, A, I, S, M, R, EM, RM>)
   & {
+    readonly [DATA_PAYLOAD_MARKER]: typeof DATA_PAYLOAD_MARKER;
+    readonly [TAG_MARKER]: T;
+    readonly schema: Schema.Schema<A, I, R>;
     readonly fromSource: (source: ProcessDataSource<K, S, I>) => Effect.Effect<A, DataPayloadKindMismatchError | UnknownError | DataPayloadInvalidDataSourceError | SchemaError | ValidationException, TypedEffectService | VineValidationService>;
     readonly [DATA_PAYLOAD_MARKER]: typeof DATA_PAYLOAD_MARKER;
   }

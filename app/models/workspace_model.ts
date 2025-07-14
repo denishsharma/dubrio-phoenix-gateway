@@ -1,10 +1,12 @@
 import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
 import type { CamelCasedProperties, SnakeCasedProperties } from 'type-fest'
+import { DatabaseTableName } from '#constants/database/database_table_name'
 import LucidUtilityService from '#core/lucid/services/lucid_utility_service'
 import Space from '#models/space_model'
 import User from '#models/user_model'
 import { compose } from '@adonisjs/core/helpers'
+import stringHelpers from '@adonisjs/core/helpers/string'
 import { BaseModel, beforeCreate, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
 import { SoftDeletes } from 'adonis-lucid-soft-deletes'
 import { Effect } from 'effect'
@@ -19,6 +21,9 @@ export default class Workspace extends compose(BaseModel, SoftDeletes) {
 
   @column()
   declare name: string
+
+  @column()
+  declare slug: string
 
   @column()
   declare website: string | null
@@ -40,7 +45,7 @@ export default class Workspace extends compose(BaseModel, SoftDeletes) {
   // ---------------------------
 
   @manyToMany(() => User, {
-    pivotTable: 'workspace_members',
+    pivotTable: DatabaseTableName.WORKSPACE_MEMBERS,
     pivotColumns: [
       'invited_by',
       'joined_at',
@@ -63,6 +68,10 @@ export default class Workspace extends compose(BaseModel, SoftDeletes) {
   // Hooks
   // ---------------------------
 
+  /**
+   * Assigns a unique identifier to the workspace if not provided.
+   * This is done using the LucidUtilityService to generate a unique identifier.
+   */
   @beforeCreate()
   static assignIdentifier(workspace: Workspace) {
     Effect.runSync(
@@ -71,6 +80,15 @@ export default class Workspace extends compose(BaseModel, SoftDeletes) {
         workspace.uid = defaultTo(workspace.uid, yield* lucidUtility.generateIdentifier)
       }).pipe(Effect.provide(LucidUtilityService.Default)),
     )
+  }
+
+  /**
+   * Assigns a slug to the workspace based on its name.
+   * If the slug is not provided, it will be generated from the name.
+   */
+  @beforeCreate()
+  static assignSlug(workspace: Workspace) {
+    workspace.slug = defaultTo(workspace.slug, stringHelpers.slug(workspace.name))
   }
 }
 
@@ -85,6 +103,7 @@ export type WorkspaceModelFields = CamelCasedProperties<{
   id: Workspace['id'];
   uid: Workspace['uid'];
   name: Workspace['name'];
+  slug: Workspace['slug'];
   website: Workspace['website'];
   logoUrl: Workspace['logoUrl'];
   industry: Workspace['industry'];

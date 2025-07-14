@@ -27,6 +27,27 @@ import { WorkspaceIdentifier } from '#shared/schemas/workspace/workspace_attribu
 import { Effect, Layer, pipe, Schema } from 'effect'
 
 export default class WorkspaceController {
+  private telemetryScope = 'authentication-controller'
+
+  /**
+   * Handles the creation of a workspace by processing the provided payload.
+   *
+   * It creates a new workspace for the authenticated user, ensuring that the workspace
+   * meets the required criteria and adds the user as a member with the appropriate role.
+   */
+  async create(ctx: FrameworkHttpContext) {
+    return Effect.gen(this, function* () {
+      const telemetry = yield* TelemetryService
+
+      return yield* Effect.gen(function* () {
+        // TODO: Implement the logic to create a workspace
+      }).pipe(
+        telemetry.withTelemetrySpan('create_workspace'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
+      )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
+  }
+
   async createWorkspace(ctx: FrameworkHttpContext) {
     return await Effect.gen(function* () {
       const responseContext = yield* HttpResponseContextService

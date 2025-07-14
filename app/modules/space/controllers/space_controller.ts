@@ -9,7 +9,8 @@ import UsingResponseEncoder from '#core/http/utils/using_response_encoder'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import CreateSpacePayload from '#modules/space/payloads/create_space_payload'
 import DeleteSpacePayload from '#modules/space/payloads/delete_space_payload'
-import FetchSpaceByIdentifier from '#modules/space/payloads/fetch_space_by_identifier'
+import ListSpacePayload from '#modules/space/payloads/list_space_payload'
+import RetrieveSpaceDetailsPayload from '#modules/space/payloads/retrieve_space_details_payload'
 import UpdateSpacePayload from '#modules/space/payloads/update_space_payload'
 import SpaceService from '#modules/space/services/space_service'
 import { Effect, pipe, Schema } from 'effect'
@@ -43,7 +44,7 @@ export default class SpaceController {
     )
   }
 
-  async listAllSpaces(ctx: FrameworkHttpContext) {
+  async list(ctx: FrameworkHttpContext) {
     return await Effect.gen(function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
@@ -53,9 +54,11 @@ export default class SpaceController {
       return yield* Effect.gen(function* () {
         /**
          * list all spaces
-         * This will return an array of spaces with their identifier, name, tag, avatarUrl, and createdAt.
          */
-        const spaces = yield* spaceService.listAllSpaces()
+        const spaces = yield* pipe(
+          ListSpacePayload.fromRequest(),
+          Effect.flatMap(spaceService.list),
+        )
 
         yield* responseContext.setMessage('Successfully retrieved all spaces')
 
@@ -67,11 +70,10 @@ export default class SpaceController {
           UsingResponseEncoder(
             Schema.Array(
               Schema.Struct({
-                identifier: Schema.ULID,
+                id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
                 name: Schema.String,
                 tag: Schema.String,
-                avatarUrl: Schema.Union(Schema.String, Schema.Null),
-                createdAt: Schema.Union(Schema.String, Schema.Null),
+                avatarUrl: Schema.optional(Schema.NullOr(Schema.String)),
               }),
             ),
           ),
@@ -86,7 +88,11 @@ export default class SpaceController {
     )
   }
 
-  async fetchSpaceByIdentifier(ctx: FrameworkHttpContext) {
+  /**
+   * Retrieve the details of a single space by its identifier.
+   * This will ensure that the user has access to the space before returning its details.
+   */
+  async details(ctx: FrameworkHttpContext) {
     return await Effect.gen(function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
@@ -96,27 +102,26 @@ export default class SpaceController {
 
       return yield* Effect.gen(function* () {
         /**
-         * Take identifier from the request query string and fetch the space by identifier.
+         * Get the space model using the payload from the request.
          */
-        const payload = yield* FetchSpaceByIdentifier.fromRequest()
+        const space = yield* pipe(
+          RetrieveSpaceDetailsPayload.fromRequest(),
+          Effect.flatMap(spaceService.details),
+        )
 
         /**
-         * Get the space refactor data such as identifier, name, tag, avatarUrl, and createdAt.
-         * This will return a single space object with the above fields.
+         * Annotate the response message.
          */
-        const space = yield* spaceService.fetchSpaceByIdentifier(payload)
-
-        yield* responseContext.setMessage(`Successfully retrieved space: ${space.name}`)
+        yield* responseContext.setMessage('Details of the space retrieved successfully.')
 
         return yield* pipe(
           DataSource.known(space),
           UsingResponseEncoder(
             Schema.Struct({
-              identifier: Schema.ULID,
+              id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
               name: Schema.String,
               tag: Schema.String,
-              avatarUrl: Schema.Union(Schema.String, Schema.Null),
-              createdAt: Schema.Union(Schema.String, Schema.Null),
+              avatarUrl: Schema.optional(Schema.NullOr(Schema.String)),
             }),
           ),
         )
@@ -175,7 +180,7 @@ export default class SpaceController {
         const payload = yield* DeleteSpacePayload.fromRequest()
         const deletedSpace = yield* spaceService.deleteSpace(payload)
 
-        responseContext.setMessage(`Successfully deleted space: ${deletedSpace.name}`)
+        yield* responseContext.setMessage(`Successfully deleted space: ${deletedSpace.name}`)
 
         return yield* pipe(
           DataSource.known(deletedSpace),

@@ -15,10 +15,17 @@ export class RetrieveSpaceUsingQuery extends LucidModelRetrievalStrategy('shared
   model: Space,
   transformed: true,
   strategy: (withStrategy, query, options) => {
+    /**
+     * @param tag - The tag to be used for the retrieval strategy, for telemetry purposes.
+     */
     return (tag: string) => {
+      /**
+       * @param builder - The function that takes a query builder and returns a promise of the result.
+       */
       return <T = Space | Space[] | null | undefined>(builder: (query: ModelQueryBuilderContract<typeof Space>) => Promise<T>) => withStrategy(
         Effect.gen(function* () {
           yield* Effect.annotateCurrentSpan('retrieval_strategy', tag)
+
           return yield* Effect.tryPromise(async () => {
             const qb = is.nullOrUndefined(options?.select) ? builder(query) : builder(query.select(defaultTo(options?.select, '*') as string))
             return await (qb as Promise<T>)
@@ -36,9 +43,13 @@ export class RetrieveSpaceUsingIdentifier extends LucidModelRetrievalStrategy('s
   model: Space,
   transformed: true,
   strategy: (withStrategy, query, options) => {
+    /**
+     * @param identifier - The identifier to be used for the retrieval strategy.
+     */
     return (identifier: SpaceIdentifier) => withStrategy(
       Effect.gen(function* () {
         yield* Effect.annotateCurrentSpan('space_identifier', identifier)
+
         return yield* Effect.tryPromise(() => query.select(defaultTo(options?.select, '*') as string).where(identifier.key, identifier.value).first())
       }),
     )
