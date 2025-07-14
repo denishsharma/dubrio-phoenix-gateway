@@ -1,5 +1,5 @@
 import type { WorkspaceTableColumns } from '#models/workspace_model'
-import type { WorkspaceIdentifier } from '#shared/schemas/workspace/workspace_attributes'
+import type { WorkspaceIdentifier, WorkspaceSlug } from '#shared/schemas/workspace/workspace_attributes'
 import type { ModelQueryBuilderContract } from '@adonisjs/lucid/types/model'
 import HttpContext from '#core/http/contexts/http_context'
 import { LucidModelRetrievalStrategy } from '#core/lucid/factories/lucid_model_retrieval_strategy'
@@ -56,6 +56,27 @@ export class RetrieveWorkspaceUsingIdentifier extends LucidModelRetrievalStrateg
     )
   },
 
+}) {}
+
+/**
+ * Strategy to retrieve a workspace using its slug.
+ * This is useful for cases where the workspace is identified by a human-readable slug.
+ */
+export class RetrieveWorkspaceUsingSlug extends LucidModelRetrievalStrategy('shared/workspace/retrieve_workspace_using_slug')<WorkspaceTableColumns>()({
+  model: Workspace,
+  transformed: true,
+  strategy: (withStrategy, query, options) => {
+    /**
+     * @param slug - The slug to be used for the retrieval strategy.
+     */
+    return (slug: WorkspaceSlug) => withStrategy(
+      Effect.gen(function* () {
+        yield* Effect.annotateCurrentSpan('workspace_slug', slug.value)
+
+        return yield* Effect.tryPromise(() => query.select(defaultTo(options?.select, '*') as string).where('slug', slug.value).first())
+      }),
+    )
+  },
 }) {}
 
 /**

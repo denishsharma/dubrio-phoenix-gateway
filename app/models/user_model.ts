@@ -2,6 +2,7 @@ import type { AccessToken } from '@adonisjs/auth/access_tokens'
 import type { BelongsTo, ManyToMany } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
 import type { CamelCasedProperties, SnakeCasedProperties } from 'type-fest'
+import { DatabaseTableName } from '#constants/database/database_table_name'
 import TypedEffectService from '#core/effect/services/typed_effect_service'
 import BooleanColumn from '#core/lucid/columns/boolean'
 import EnumColumn from '#core/lucid/columns/enum'
@@ -73,7 +74,7 @@ export default class User extends compose(BaseModel, AuthFinder, SoftDeletes) {
    * The pivot table is 'workspace_members' and includes additional fields like 'invited_by', 'joined_at', 'is_active', and 'status'.
    */
   @manyToMany(() => Workspace, {
-    pivotTable: 'workspace_members',
+    pivotTable: DatabaseTableName.WORKSPACE_MEMBERS,
     pivotColumns: [
       'invited_by',
       'joined_at',

@@ -1,7 +1,8 @@
+import { DatabaseTableName } from '#constants/database/database_table_name'
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
-  protected tableName = 'workspaces'
+  protected tableName = DatabaseTableName.WORKSPACES
 
   async up() {
     this.schema.createTable(this.tableName, (table) => {
@@ -9,6 +10,7 @@ export default class extends BaseSchema {
       table.string('uid').unique()
 
       table.string('name')
+      table.string('slug').unique()
       table.string('website').nullable()
       table.string('logo_url').nullable()
       table.string('industry').nullable()
