@@ -229,32 +229,32 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
           try: () => workspace
             .related('spaces')
             .query()
-            .where('uid', payload.identifier)
+            .where('uid', payload.space_identifier.value)
             .andWhere('workspace_id', workspace.id)
             .first(),
           catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space for update.'),
         }).pipe(telemetry.withTelemetrySpan('fetch_space_for_update'))
 
         if (!space) {
-          throw new SpaceAccessDeniedException(`Space with identifier ${payload.identifier} not found in the active workspace.`)
+          throw new SpaceAccessDeniedException(`Space with identifier ${payload.space_identifier.value} not found in the active workspace.`)
         }
 
         /**
          * Update the space with the provided data.
          */
-        if (payload.mode === 'put') {
-          space.name = payload.name
-          space.tag = payload.tag
-          space.avatarUrl = payload.avatarUrl ?? null
-        } else if (payload.mode === 'patch') {
+        if (payload.mode === 'replace') {
+          space.name = payload.data.name
+          space.tag = payload.data.tag
+          space.avatarUrl = payload.data.avatar_url ?? null
+        } else if (payload.mode === 'partial') {
           if (payload.data.name) {
             space.name = payload.data.name
           }
           if (payload.data.tag) {
             space.tag = payload.data.tag
           }
-          if (payload.data.avatarUrl) {
-            space.avatarUrl = payload.data.avatarUrl
+          if (payload.data.avatar_url) {
+            space.avatarUrl = payload.data.avatar_url
           }
         }
 

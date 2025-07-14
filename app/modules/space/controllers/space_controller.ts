@@ -43,7 +43,7 @@ export default class SpaceController {
     )
   }
 
-  async listAllSpaces(ctx: FrameworkHttpContext) {
+  async list(ctx: FrameworkHttpContext) {
     return await Effect.gen(function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
@@ -86,7 +86,7 @@ export default class SpaceController {
     )
   }
 
-  async fetchSpaceByIdentifier(ctx: FrameworkHttpContext) {
+  async details(ctx: FrameworkHttpContext) {
     return await Effect.gen(function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
