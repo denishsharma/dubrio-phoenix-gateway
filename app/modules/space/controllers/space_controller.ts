@@ -7,11 +7,16 @@ import { WithEmptyResponseData } from '#core/http/constants/with_empty_response_
 import HttpResponseContextService from '#core/http/services/http_response_context_service'
 import UsingResponseEncoder from '#core/http/utils/using_response_encoder'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
-import CreateSpacePayload from '#modules/space/payloads/create_space_payload'
-import DeleteSpacePayload from '#modules/space/payloads/delete_space_payload'
-import ListSpacePayload from '#modules/space/payloads/list_space_payload'
-import RetrieveSpaceDetailsPayload from '#modules/space/payloads/retrieve_space_details_payload'
-import UpdateSpacePayload from '#modules/space/payloads/update_space_payload'
+import AuthenticationService from '#modules/iam/services/authentication_service'
+import CreateSpaceRequestPayload from '#modules/space/payloads/request/create_space_request_payload'
+import DeleteSpaceRequestPayload from '#modules/space/payloads/request/delete_space_request_payload'
+import ListSpaceRequestPayload from '#modules/space/payloads/request/list_space_request_payload'
+import RetrieveSpaceDetailsRequestPayload from '#modules/space/payloads/request/retrieve_space_details_request_payload'
+import UpdateSpaceRequestPayload from '#modules/space/payloads/request/update_space_request_payload'
+import CreateSpacePayload from '#modules/space/payloads/space_manager/create_space_payload'
+import DeleteSpacePayload from '#modules/space/payloads/space_manager/delete_space_payload'
+import ListSpacePayload from '#modules/space/payloads/space_manager/list_space_payload'
+import RetrieveSpaceDetailsPayload from '#modules/space/payloads/space_manager/retrieve_space_details_payload'
 import SpaceService from '#modules/space/services/space_service'
 import { Effect, pipe, Schema } from 'effect'
 
@@ -22,10 +27,26 @@ export default class SpaceController {
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
 
+      const authenticationService = yield* AuthenticationService
       const spaceService = yield* SpaceService
+
       return yield* Effect.gen(function* () {
-        const payload = yield* CreateSpacePayload.fromRequest()
-        const space = yield* spaceService.createSpace(payload)
+        const payload = yield* CreateSpaceRequestPayload.fromRequest()
+        const user = yield* authenticationService.getAuthenticatedUser
+
+        const space = yield* pipe(
+          DataSource.known({
+            user,
+            space: {
+              name: payload.name,
+              tag: payload.tag,
+              icon: payload.icon,
+            },
+            workspace_identifier: payload.workspace_identifier,
+          }),
+          CreateSpacePayload.fromSource(),
+          Effect.flatMap(spaceService.createSpace),
+        )
 
         yield* responseContext.annotateMetadata({
           name: space.name,
@@ -56,8 +77,16 @@ export default class SpaceController {
          * list all spaces
          */
         const spaces = yield* pipe(
-          ListSpacePayload.fromRequest(),
-          Effect.flatMap(spaceService.list),
+          ListSpaceRequestPayload.fromRequest(),
+          Effect.flatMap(requestPayload =>
+            pipe(
+              DataSource.known({
+                workspace_identifier: requestPayload.workspace_identifier,
+              }),
+              ListSpacePayload.fromSource(),
+              Effect.flatMap(spaceService.list),
+            ),
+          ),
         )
 
         yield* responseContext.setMessage('Successfully retrieved all spaces')
@@ -73,7 +102,7 @@ export default class SpaceController {
                 id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
                 name: Schema.String,
                 tag: Schema.String,
-                avatarUrl: Schema.optional(Schema.NullOr(Schema.String)),
+                icon: Schema.optional(Schema.NullOr(Schema.String)),
               }),
             ),
           ),
@@ -105,8 +134,16 @@ export default class SpaceController {
          * Get the space model using the payload from the request.
          */
         const space = yield* pipe(
-          RetrieveSpaceDetailsPayload.fromRequest(),
-          Effect.flatMap(spaceService.details),
+          RetrieveSpaceDetailsRequestPayload.fromRequest(),
+          Effect.flatMap(requestPayload =>
+            pipe(
+              DataSource.known({
+                space_identifier: requestPayload.space_identifier,
+              }),
+              RetrieveSpaceDetailsPayload.fromSource(),
+              Effect.flatMap(spaceService.details),
+            ),
+          ),
         )
 
         /**
@@ -121,7 +158,7 @@ export default class SpaceController {
               id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
               name: Schema.String,
               tag: Schema.String,
-              avatarUrl: Schema.optional(Schema.NullOr(Schema.String)),
+              icon: Schema.optional(Schema.NullOr(Schema.String)),
             }),
           ),
         )
@@ -144,9 +181,9 @@ export default class SpaceController {
       const spaceService = yield* SpaceService
 
       return yield* Effect.gen(function* () {
-        const payload = yield* UpdateSpacePayload.fromRequest()
+        const requestPayload = yield* UpdateSpaceRequestPayload.fromRequest()
 
-        const updatedSpace = yield* spaceService.updateSpace(payload)
+        const updatedSpace = yield* spaceService.updateSpace(requestPayload)
 
         yield* responseContext.setMessage(`Successfully updated space: ${updatedSpace.name}`)
 
@@ -177,8 +214,18 @@ export default class SpaceController {
       const spaceService = yield* SpaceService
 
       return yield* Effect.gen(function* () {
-        const payload = yield* DeleteSpacePayload.fromRequest()
-        const deletedSpace = yield* spaceService.deleteSpace(payload)
+        const deletedSpace = yield* pipe(
+          DeleteSpaceRequestPayload.fromRequest(),
+          Effect.flatMap(requestPayload =>
+            pipe(
+              DataSource.known({
+                space_identifier: requestPayload.space_identifier,
+              }),
+              DeleteSpacePayload.fromSource(),
+              Effect.flatMap(spaceService.deleteSpace),
+            ),
+          ),
+        )
 
         yield* responseContext.setMessage(`Successfully deleted space: ${deletedSpace.name}`)
 

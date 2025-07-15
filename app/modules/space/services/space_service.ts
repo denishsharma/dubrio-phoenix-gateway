@@ -1,10 +1,10 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
 import type { SpaceModelFields } from '#models/space_model'
-import type CreateSpacePayload from '#modules/space/payloads/create_space_payload'
-import type DeleteSpacePayload from '#modules/space/payloads/delete_space_payload'
-import type ListSpacePayload from '#modules/space/payloads/list_space_payload'
-import type RetrieveSpaceDetailsPayload from '#modules/space/payloads/retrieve_space_details_payload'
-import type UpdateSpacePayload from '#modules/space/payloads/update_space_payload'
+import type UpdateSpaceRequestPayload from '#modules/space/payloads/request/update_space_request_payload'
+import type CreateSpacePayload from '#modules/space/payloads/space_manager/create_space_payload'
+import type DeleteSpacePayload from '#modules/space/payloads/space_manager/delete_space_payload'
+import type ListSpacePayload from '#modules/space/payloads/space_manager/list_space_payload'
+import type RetrieveSpaceDetailsPayload from '#modules/space/payloads/space_manager/retrieve_space_details_payload'
 import DatabaseService from '#core/database/services/database_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_strategy'
@@ -47,8 +47,8 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
          */
         const workspace = yield* pipe(
           WithRetrievalStrategy(
-            RetrieveActiveWorkspace,
-            retrieve => retrieve(),
+            RetrieveWorkspaceUsingIdentifier,
+            retrieve => retrieve(payload.workspace_identifier),
             {
               exception: {
                 throw: true,
@@ -69,10 +69,10 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
             return await workspace
               .related('spaces')
               .create({
-                name: payload.name,
-                tag: payload.tag,
+                name: payload.space.name,
+                tag: payload.space.tag,
                 createdBy: user.id,
-                avatarUrl: payload.avatar_url,
+                icon: payload.space.icon,
               } satisfies Partial<SpaceModelFields>)
           },
           catch: errorConversion.toUnknownError('Unexpected error occurred while creating the space.'),
@@ -153,7 +153,7 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
       }).pipe(telemetry.withTelemetrySpan('retrieve_space_details', { attributes: { space_identifier: payload.space_identifier } }))
     }
 
-    function updateSpace(payload: ProcessedDataPayload<UpdateSpacePayload>) {
+    function updateSpace(payload: ProcessedDataPayload<UpdateSpaceRequestPayload>) {
       return Effect.gen(function* () {
         const { trx } = yield* database.requireTransaction()
 
@@ -200,7 +200,7 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
         if (payload.mode === 'replace') {
           space.name = payload.data.name
           space.tag = payload.data.tag
-          space.avatarUrl = payload.data.avatar_url ?? null
+          space.icon = payload.data.icon ?? null
         } else if (payload.mode === 'partial') {
           if (payload.data.name) {
             space.name = payload.data.name
@@ -208,8 +208,8 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
           if (payload.data.tag) {
             space.tag = payload.data.tag
           }
-          if (payload.data.avatar_url) {
-            space.avatarUrl = payload.data.avatar_url
+          if (payload.data.icon) {
+            space.icon = payload.data.icon
           }
         }
 
@@ -256,14 +256,14 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
           try: () => workspace
             .related('spaces')
             .query()
-            .where('uid', payload.identifier)
+            .where('uid', payload.space_identifier.value)
             .andWhere('workspace_id', workspace.id)
             .first(),
           catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space for deletion.'),
         }).pipe(telemetry.withTelemetrySpan('fetch_space_for_deletion'))
 
         if (!space) {
-          throw new SpaceAccessDeniedException(`Space with identifier ${payload.identifier} not found in the active workspace.`)
+          throw new SpaceAccessDeniedException(`Space with identifier ${payload.space_identifier.value} not found in the active workspace.`)
         }
 
         /**
@@ -291,7 +291,7 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
 
       /**
        * List all spaces for the active workspace.
-       * This will return an array of spaces with their identifier, name, tag, avatarUrl, and createdAt.
+       * This will return an array of spaces with their identifier, name, tag, icon, and createdAt.
        * This is useful for displaying all spaces in the UI.
        */
       list,

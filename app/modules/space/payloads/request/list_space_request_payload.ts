@@ -6,7 +6,7 @@ import { WorkspaceIdentifier } from '#shared/schemas/workspace/workspace_attribu
 import vine from '@vinejs/vine'
 import { Effect, Match, Schema } from 'effect'
 
-export default class ListSpacePayload extends DataPayload('modules/space/list_space')({
+export default class ListSpaceRequestPayload extends DataPayload('modules/space/payloads/request/list_space_request')({
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({

@@ -8,21 +8,19 @@ import { merge } from 'lodash-es'
 
 const PUT_VALIDATION_SCHEMA = {
   mode: vine.literal('replace'),
-  // identifier: vine.string().trim(),
   data: vine.object({
     name: vine.string().trim().minLength(3).maxLength(64),
     tag: vine.string().trim().maxLength(64),
-    avatar_url: vine.string().trim().optional(),
+    icon: vine.string().trim().optional(),
   }),
 }
 
 const PATCH_VALIDATION_SCHEMA = {
   mode: vine.literal('partial'),
-  // identifier: vine.string().trim(),
   data: vine.object({
     name: vine.string().trim().minLength(2).optional(),
     tag: vine.string().trim().minLength(2).optional(),
-    avatar_url: vine.string().url().optional(),
+    icon: vine.string().url().optional(),
   }),
 }
 
@@ -31,7 +29,7 @@ const UPDATE_SPACE_VALIDATION = vine.group([
   vine.group.if(d => d.mode === 'partial', PATCH_VALIDATION_SCHEMA),
 ])
 
-export default class UpdateSpacePayload extends DataPayload('modules/space/update_space')({
+export default class UpdateSpaceRequestPayload extends DataPayload('modules/space/payloads/request/update_space_request')({
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({
@@ -59,7 +57,7 @@ export default class UpdateSpacePayload extends DataPayload('modules/space/updat
         data: Schema.Struct({
           name: Schema.String,
           tag: Schema.String,
-          avatar_url: Schema.optional(Schema.NullOr(Schema.String)),
+          icon: Schema.optional(Schema.NullOr(Schema.String)),
         }),
       }),
       Schema.Struct({
@@ -68,7 +66,7 @@ export default class UpdateSpacePayload extends DataPayload('modules/space/updat
           Schema.Struct({
             name: Schema.String,
             tag: Schema.String,
-            avatar_url: Schema.String,
+            icon: Schema.String,
           }),
         ),
       }),

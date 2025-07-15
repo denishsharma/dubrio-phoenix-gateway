@@ -5,7 +5,7 @@ import { SpaceIdentifier } from '#shared/schemas/space/space_attributes'
 import vine from '@vinejs/vine'
 import { Effect, Schema } from 'effect'
 
-export default class RetrieveSpaceDetailsPayload extends DataPayload('modules/space/retrieve_space_details')({
+export default class RetrieveSpaceDetailsRequestPayload extends DataPayload('modules/space/payloads/request/retrieve_space_details_request')({
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({

@@ -10,19 +10,21 @@ import HttpContext from '#core/http/contexts/http_context'
 import HttpRequestService from '#core/http/services/http_request_service'
 import HttpResponseContextService from '#core/http/services/http_response_context_service'
 import UsingResponseEncoder from '#core/http/utils/using_response_encoder'
-import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_strategy'
-import LucidModelRetrievalService from '#core/lucid/services/lucid_model_retrieval_service'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import VineValidationService from '#core/validation/services/vine_validation_service'
 import AuthenticationService from '#modules/iam/services/authentication_service'
 import AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
-import CreateWorkspacePayload from '#modules/workspace/payloads/create_workspace_payload'
+import CreateWorkspacePayload2 from '#modules/workspace/payloads/create_workspace_payload'
 import InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
+import CreateWorkspaceRequestPayload from '#modules/workspace/payloads/requests/create_workspace_request_payload'
 import SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
 import SetActiveWorkspace from '#modules/workspace/payloads/set_active_workspace'
+import CreateWorkspacePayload from '#modules/workspace/payloads/workspace_manager/create_workspace_payload'
+import SetActiveWorkspaceSessionPayload from '#modules/workspace/payloads/workspace_session/set_active_workspace_session_payload'
+import WorkspaceManagerService from '#modules/workspace/services/workspace_manager_service'
 import WorkspaceService from '#modules/workspace/services/workspace_service'
+import WorkspaceSessionService from '#modules/workspace/services/workspace_session_service'
 import StringMixerService from '#shared/common/services/string_mixer_service'
-import { RetrieveWorkspaceUsingIdentifier } from '#shared/retrieval_strategies/workspace_retrieval_strategy'
 import { WorkspaceIdentifier } from '#shared/schemas/workspace/workspace_attributes'
 import { Effect, Layer, pipe, Schema } from 'effect'
 
@@ -37,11 +39,35 @@ export default class WorkspaceController {
    */
   async create(ctx: FrameworkHttpContext) {
     return Effect.gen(this, function* () {
+      const database = yield* DatabaseService
       const telemetry = yield* TelemetryService
+
+      const authenticationService = yield* AuthenticationService
+      const workspaceManagerService = yield* WorkspaceManagerService
 
       return yield* Effect.gen(function* () {
         // TODO: Implement the logic to create a workspace
+        const payload = yield* CreateWorkspaceRequestPayload.fromRequest()
+        const user = yield* authenticationService.getAuthenticatedUser
+
+        const workspace = yield* pipe(
+          DataSource.known({
+            user,
+            workspace: {
+              name: payload.name,
+              slug: payload.slug,
+              website: payload.website,
+              logo: payload.logo,
+              industry: payload.industry,
+            },
+          }),
+          CreateWorkspacePayload.fromSource(),
+          Effect.flatMap(workspaceManagerService.create),
+        )
+
+        return workspace
       }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('create_workspace'),
         telemetry.withScopedTelemetry(this.telemetryScope),
       )
@@ -57,7 +83,7 @@ export default class WorkspaceController {
       const authenticationService = yield* AuthenticationService
 
       return yield* Effect.gen(function* () {
-        const payload = yield* CreateWorkspacePayload.fromRequest()
+        const payload = yield* CreateWorkspacePayload2.fromRequest()
         const user = yield* authenticationService.getAuthenticatedUser
 
         const workspace = yield* workspaceService.createWorkspace(payload, user)
@@ -92,33 +118,27 @@ export default class WorkspaceController {
 
   async setActiveWorkspace(ctx: FrameworkHttpContext) {
     return await Effect.gen(function* () {
-      const lucidModelRetrieval = yield* LucidModelRetrievalService
+      const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
 
+      const workspaceSessionService = yield* WorkspaceSessionService
       return yield* Effect.gen(function* () {
         const payload = yield* SetActiveWorkspace.fromRequest()
 
-        const workspace = yield* pipe(
-          WithRetrievalStrategy(
-            RetrieveWorkspaceUsingIdentifier,
-            retrieve => retrieve(WorkspaceIdentifier.make(payload.uid)),
-            {
-              select: ['uid'],
-              exception: {
-                throw: true,
-              },
-            },
-          ),
-          lucidModelRetrieval.retrieve,
+        yield* pipe(
+          DataSource.known({
+            workspace_identifier: WorkspaceIdentifier.make(payload.uid),
+          }),
+          SetActiveWorkspaceSessionPayload.fromSource(),
+          Effect.flatMap(workspaceSessionService.setActiveWorkspace),
         )
-
-        ctx.session.put('active_workspace', workspace.uid)
 
         yield* responseContext.setMessage('Active workspace set successfully')
 
         return WithEmptyResponseData()
       }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('set_active_workspace'),
         telemetry.withScopedTelemetry('workspace-controller'),
       )

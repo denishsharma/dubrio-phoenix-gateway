@@ -24,7 +24,7 @@ export default class Space extends compose(BaseModel, SoftDeletes) {
   declare tag: string
 
   @column()
-  declare avatarUrl: string | null
+  declare icon: string | null
 
   @column()
   declare workspaceId: number
@@ -83,7 +83,7 @@ export type SpaceModelFields = CamelCasedProperties<{
   uid: Space['uid'];
   name: Space['name'];
   tag: Space['tag'];
-  avatarUrl: Space['avatarUrl'];
+  icon: Space['icon'];
   workspaceId: Space['workspaceId'];
   createdBy: Space['createdBy'];
   createdAt: Space['createdAt'];

@@ -1,6 +1,7 @@
 import type { InferValue } from 'better-enums'
 import { Enum } from 'better-enums'
 
+// TODO: remove suspended status and pending activation status
 export const WORKSPACE_MEMBER_STATUS = Enum({
   INVITATION_PENDING: 'invitation_pending',
   ACTIVE: 'active',

@@ -11,7 +11,7 @@ export default class extends BaseSchema {
       table.string('name')
       table.string('tag')
       table.unique(['tag', 'workspace_id'])
-      table.string('avatar_url').nullable()
+      table.string('icon').nullable()
 
       table.integer('workspace_id').unsigned().references('id').inTable('workspaces')
 
