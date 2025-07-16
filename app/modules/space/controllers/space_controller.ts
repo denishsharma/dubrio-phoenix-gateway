@@ -17,12 +17,13 @@ import CreateSpacePayload from '#modules/space/payloads/space_manager/create_spa
 import DeleteSpacePayload from '#modules/space/payloads/space_manager/delete_space_payload'
 import ListSpacePayload from '#modules/space/payloads/space_manager/list_space_payload'
 import RetrieveSpaceDetailsPayload from '#modules/space/payloads/space_manager/retrieve_space_details_payload'
+import UpdateSpacePayload from '#modules/space/payloads/space_manager/update_space_payload'
 import SpaceService from '#modules/space/services/space_service'
 import { Effect, pipe, Schema } from 'effect'
 
 export default class SpaceController {
   async create(ctx: FrameworkHttpContext) {
-    return await Effect.gen(function* () {
+    return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
@@ -66,7 +67,7 @@ export default class SpaceController {
   }
 
   async list(ctx: FrameworkHttpContext) {
-    return await Effect.gen(function* () {
+    return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
@@ -122,7 +123,7 @@ export default class SpaceController {
    * This will ensure that the user has access to the space before returning its details.
    */
   async details(ctx: FrameworkHttpContext) {
-    return await Effect.gen(function* () {
+    return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
@@ -133,17 +134,15 @@ export default class SpaceController {
         /**
          * Get the space model using the payload from the request.
          */
+        const requestPayload = yield* RetrieveSpaceDetailsRequestPayload.fromRequest()
+
         const space = yield* pipe(
-          RetrieveSpaceDetailsRequestPayload.fromRequest(),
-          Effect.flatMap(requestPayload =>
-            pipe(
-              DataSource.known({
-                space_identifier: requestPayload.space_identifier,
-              }),
-              RetrieveSpaceDetailsPayload.fromSource(),
-              Effect.flatMap(spaceService.details),
-            ),
-          ),
+          DataSource.known({
+            workspace_identifier: requestPayload.workspace_identifier,
+            space_identifier: requestPayload.space_identifier,
+          }),
+          RetrieveSpaceDetailsPayload.fromSource(),
+          Effect.flatMap(spaceService.details),
         )
 
         /**
@@ -173,7 +172,7 @@ export default class SpaceController {
   }
 
   async update(ctx: FrameworkHttpContext) {
-    return await Effect.gen(function* () {
+    return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
@@ -183,7 +182,23 @@ export default class SpaceController {
       return yield* Effect.gen(function* () {
         const requestPayload = yield* UpdateSpaceRequestPayload.fromRequest()
 
-        const updatedSpace = yield* spaceService.updateSpace(requestPayload)
+        const updatedSpace = yield* pipe(
+          requestPayload.mode === 'replace'
+            ? DataSource.known({
+                workspace_identifier: requestPayload.workspace_identifier,
+                space_identifier: requestPayload.space_identifier,
+                mode: requestPayload.mode,
+                data: requestPayload.data,
+              })
+            : DataSource.known({
+                workspace_identifier: requestPayload.workspace_identifier,
+                space_identifier: requestPayload.space_identifier,
+                mode: requestPayload.mode,
+                data: requestPayload.data,
+              }),
+          UpdateSpacePayload.fromSource(),
+          Effect.flatMap(spaceService.updateSpace),
+        )
 
         yield* responseContext.setMessage(`Successfully updated space: ${updatedSpace.name}`)
 
@@ -206,7 +221,7 @@ export default class SpaceController {
   }
 
   async delete(ctx: FrameworkHttpContext) {
-    return await Effect.gen(function* () {
+    return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
@@ -214,17 +229,15 @@ export default class SpaceController {
       const spaceService = yield* SpaceService
 
       return yield* Effect.gen(function* () {
+        const requestPayload = yield* DeleteSpaceRequestPayload.fromRequest()
+
         const deletedSpace = yield* pipe(
-          DeleteSpaceRequestPayload.fromRequest(),
-          Effect.flatMap(requestPayload =>
-            pipe(
-              DataSource.known({
-                space_identifier: requestPayload.space_identifier,
-              }),
-              DeleteSpacePayload.fromSource(),
-              Effect.flatMap(spaceService.deleteSpace),
-            ),
-          ),
+          DataSource.known({
+            workspace_identifier: requestPayload.workspace_identifier,
+            space_identifier: requestPayload.space_identifier,
+          }),
+          DeleteSpacePayload.fromSource(),
+          Effect.flatMap(spaceService.deleteSpace),
         )
 
         yield* responseContext.setMessage(`Successfully deleted space: ${deletedSpace.name}`)
