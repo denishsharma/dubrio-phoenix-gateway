@@ -1,7 +1,7 @@
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import { QueueJob } from '#core/queue_job/factories/queue_job'
 import VerifyAccountMailNotification from '#modules/iam/notifications/mails/verify_account_mail_notification'
-import { AccountVerificationToken } from '#modules/iam/schemas/account/account_attributes'
+import AccountVerificationToken from '#modules/iam/schemas/account/account_verification_token'
 import MaskingService from '#shared/common/services/masking_service'
 import env from '#start/env'
 import app from '@adonisjs/core/services/app'
@@ -14,7 +14,7 @@ import { joinURL, normalizeURL, withQuery } from 'ufo'
 export default class SendAccountVerificationEmailJob extends QueueJob('modules/iam/send_account_verification_email', import.meta.url)({
   schema: Schema.Struct({
     email_address: Schema.String,
-    token: AccountVerificationToken,
+    token: AccountVerificationToken.schema,
   }),
   handle: payload => Effect.gen(function* () {
     const errorConversion = yield* ErrorConversionService

@@ -1,24 +1,13 @@
 import { DataPayloadKind } from '#core/data_payload/constants/data_payload_kind'
 import { DataPayload } from '#core/data_payload/factories/data_payload'
-import vine from '@vinejs/vine'
 import { Schema } from 'effect'
 
-export default class RegisterUserPayload extends DataPayload('modules/iam/authentication/register_user')({
-  kind: DataPayloadKind.REQUEST,
-  validator: vine.compile(
-    vine.object({
-      email_address: vine.string().trim().normalizeEmail(),
-      password: vine.string().trim().minLength(8).maxLength(64).confirmed({
-        confirmationField: 'confirm_password',
-      }),
-      first_name: vine.string().trim().minLength(3),
-      last_name: vine.string().trim().optional(),
-    }),
-  ),
+export default class RegisterUserPayload extends DataPayload('modules/iam/authentication/register_user_payload')({
+  kind: DataPayloadKind.DATA,
   schema: Schema.Struct({
     email_address: Schema.NonEmptyTrimmedString,
     password: Schema.Redacted(Schema.NonEmptyTrimmedString),
     first_name: Schema.NonEmptyTrimmedString,
-    last_name: Schema.NonEmptyTrimmedString,
+    last_name: Schema.optionalWith(Schema.NonEmptyTrimmedString, { nullable: true }),
   }),
 }) {}

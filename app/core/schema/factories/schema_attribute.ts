@@ -6,6 +6,7 @@ import { SCHEMA_ATTRIBUTE_MARKER } from '#core/schema/constants/schema_marker'
 import SchemaError from '#core/schema/errors/schema_error'
 import NoSuchElementError from '#errors/no_such_element_error'
 import is from '@adonisjs/core/helpers/is'
+import { defu } from 'defu'
 import { Effect, Inspectable, Option, pipe, Schema } from 'effect'
 import { has } from 'lodash-es'
 
@@ -96,10 +97,19 @@ function base<T extends string, A, I, R, M extends string | symbol>(tag: T, fact
     /**
      * Returns the encoded value of the schema attribute.
      */
-    get encoded() {
+    encoded(options?: { error?: { message?: string } }) {
       const data = this[INTERNALS_MARKER].data.decoded
       const schema = this[INTERNALS_MARKER].schema
       const thisTag = this._tag
+
+      const resolvedOptions = defu(
+        options,
+        {
+          error: {
+            message: `Unexpected error occurred while encoding data for schema attribute with tag '${thisTag}'.`,
+          },
+        },
+      )
 
       return Effect.gen(this, function* () {
         return yield* pipe(
@@ -110,7 +120,7 @@ function base<T extends string, A, I, R, M extends string | symbol>(tag: T, fact
             ),
             { errors: 'all' },
           ),
-          SchemaError.fromParseError(`Unexpected error occurred while encoding data for schema attribute with tag '${thisTag}'`),
+          SchemaError.fromParseError(resolvedOptions.error.message),
           Effect.flatten,
           Effect.catchTag('NoSuchElementException', error => new NoSuchElementError(`Cannot access 'encoded' property of schema attribute '${thisTag}' because it has not been encoded yet.`, { cause: error })),
         )
@@ -184,7 +194,16 @@ export function SchemaAttribute<T extends string>(tag: T) {
 
       static get schema() { return factoryOptions.schema }
 
-      static make<V extends BaseSchemaAttribute>(this: new (encoded: Option.Option<I>, decoded: Option.Option<A>) => V, data: I) {
+      static make<V extends BaseSchemaAttribute>(this: new (encoded: Option.Option<I>, decoded: Option.Option<A>) => V, data: I, options?: { error?: { message?: string } }) {
+        const resolvedOptions = defu(
+          options,
+          {
+            error: {
+              message: `Unexpected error occurred while encoding data for schema attribute with tag '${resolvedTag}'.`,
+            },
+          },
+        )
+
         return Effect.gen(this, function* () {
           const decoded = yield* pipe(
             data,
@@ -192,7 +211,7 @@ export function SchemaAttribute<T extends string>(tag: T) {
               Schema.asSchema(factoryOptions.schema),
               { errors: 'all' },
             ),
-            SchemaError.fromParseError(`Unexpected error occurred while decoding data for schema attribute with tag '${resolvedTag}'`),
+            SchemaError.fromParseError(resolvedOptions.error.message),
             Effect.map(Option.some),
           )
           const encoded = Option.some(data)

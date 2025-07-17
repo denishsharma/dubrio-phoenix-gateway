@@ -6,7 +6,7 @@ import { WithEmptyResponseData } from '#core/http/constants/with_empty_response_
 import HttpResponseContextService from '#core/http/services/http_response_context_service'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import AccountAlreadyVerifiedException from '#modules/iam/exceptions/account_already_verified_exception'
-import VerifyAccountPayload from '#modules/iam/payloads/account/verify_account_payload'
+import VerifyAccountRequestPayload from '#modules/iam/payloads/requests/account/verify_account_request_payload'
 import AccountVerificationService from '#modules/iam/services/account_verification_service'
 import AuthenticationService from '#modules/iam/services/authentication_service'
 import { Effect, pipe } from 'effect'
@@ -68,8 +68,8 @@ export default class AccountController {
          * using the data from the request.
          */
         yield* pipe(
-          VerifyAccountPayload.fromRequest(),
-          Effect.flatMap(accountVerificationService.verifyAccount),
+          VerifyAccountRequestPayload.fromRequest(),
+          Effect.flatMap(payload => accountVerificationService.verifyAccount(payload.token)),
         )
 
         /**
@@ -86,6 +86,20 @@ export default class AccountController {
       }).pipe(
         Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('verify_account'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
+      )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
+  }
+
+  // TODO: Implement the method to send verification email when user is authenticated but account is not verified.
+  async sendVerificationEmail(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const telemetry = yield* TelemetryService
+
+      return yield* Effect.gen(function* () {
+        // Placeholder for sending verification email logic (REMOVE THIS COMMENT WHEN IMPLEMENTED)
+      }).pipe(
+        telemetry.withTelemetrySpan('send_verification_email'),
         telemetry.withScopedTelemetry(this.telemetryScope),
       )
     }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))

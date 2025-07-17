@@ -3,7 +3,7 @@ import { DataPayload } from '#core/data_payload/factories/data_payload'
 import vine from '@vinejs/vine'
 import { Effect, Schema } from 'effect'
 
-export default class SendPasswordResetEmailPayload extends DataPayload('modules/iam/authentication/send_password_reset_email')({
+export default class SendPasswordResetEmailRequestPayload extends DataPayload('modules/iam/requests/authentication/send_password_reset_email_request')({
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({
