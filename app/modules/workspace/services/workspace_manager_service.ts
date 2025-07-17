@@ -2,6 +2,7 @@ import type { ProcessedDataPayload } from '#core/data_payload/factories/data_pay
 import type { WorkspaceModelFields } from '#models/workspace_model'
 import type CreateWorkspacePayload from '#modules/workspace/payloads/workspace_manager/create_workspace_payload'
 import type DeleteWorkspacePayload from '#modules/workspace/payloads/workspace_manager/delete_workspace_payload'
+import type ListWorkspacePayload from '#modules/workspace/payloads/workspace_manager/list_workspace_payload'
 import type RetrieveWorkspaceDetailsPayload from '#modules/workspace/payloads/workspace_manager/retrieve_workspace_details_payload'
 import type UpdateWorkspaceDetailsPayload from '#modules/workspace/payloads/workspace_manager/update_workspace_details_payload'
 import type { WorkspaceSlug } from '#shared/schemas/workspace/workspace_attributes'
@@ -182,21 +183,154 @@ export default class WorkspaceManagerService extends Effect.Service<WorkspaceMan
       })
     }
 
-    function details(_payload: ProcessedDataPayload<RetrieveWorkspaceDetailsPayload>) {
-      return Effect.gen(function* () {})
+    function list(payload: ProcessedDataPayload<ListWorkspacePayload>) {
+      return Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+
+        /**
+         * Retrieve all workspaces for the authenticated user
+         */
+        const workspaces = yield* Effect.tryPromise({
+          try: async () => {
+            return await Workspace.query({ client: trx })
+              .whereExists((subQuery) => {
+                subQuery
+                  .from('workspace_members')
+                  .whereRaw('workspace_members.workspace_id = workspaces.id')
+                  .where('workspace_members.user_id', '=', payload.user_identifier)
+              })
+              .orderBy('created_at', 'desc')
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving workspaces.'),
+        }).pipe(telemetry.withTelemetrySpan('list_workspaces'))
+
+        return workspaces
+      })
     }
 
-    function update(_payload: ProcessedDataPayload<UpdateWorkspaceDetailsPayload>) {
-      return Effect.gen(function* () {})
+    function details(payload: ProcessedDataPayload<RetrieveWorkspaceDetailsPayload>) {
+      return Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+
+        /**
+         * Retrieve the workspace using the provided identifier
+         */
+        const workspace = yield* Effect.tryPromise({
+          try: async () => {
+            return await Workspace.query({ client: trx })
+              .where('uid', payload.workspace_identifier.value)
+              .first()
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving workspace details.'),
+        }).pipe(telemetry.withTelemetrySpan('retrieve_workspace_details'))
+
+        if (!workspace) {
+          throw new Error(`Workspace with identifier ${payload.workspace_identifier.value} not found.`)
+        }
+
+        return workspace
+      })
     }
 
-    function remove(_payload: ProcessedDataPayload<DeleteWorkspacePayload>) {
-      return Effect.gen(function* () {})
+    function update(payload: ProcessedDataPayload<UpdateWorkspaceDetailsPayload>) {
+      return Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+
+        /**
+         * Retrieve the workspace using the provided identifier
+         */
+        const workspace = yield* Effect.tryPromise({
+          try: async () => {
+            return await Workspace.query({ client: trx })
+              .where('uid', payload.workspace_identifier.value)
+              .first()
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving workspace for update.'),
+        }).pipe(telemetry.withTelemetrySpan('retrieve_workspace_for_update'))
+
+        if (!workspace) {
+          throw new Error(`Workspace with identifier ${payload.workspace_identifier.value} not found.`)
+        }
+
+        /**
+         * Update the workspace with the provided data
+         */
+        if (payload.mode === 'replace') {
+          workspace.name = payload.details.name
+          workspace.website = payload.details.website ?? null
+          workspace.industry = payload.details.industry ?? null
+          if (payload.details.logo) {
+            // TODO: Handle logo upload
+          }
+        } else if (payload.mode === 'partial') {
+          if (payload.details.name) {
+            workspace.name = payload.details.name
+          }
+          if (payload.details.website !== undefined) {
+            workspace.website = payload.details.website
+          }
+          if (payload.details.industry !== undefined) {
+            workspace.industry = payload.details.industry
+          }
+          if (payload.details.logo) {
+            // TODO: Handle logo upload
+          }
+        }
+
+        /**
+         * Save the updated workspace
+         */
+        yield* Effect.tryPromise({
+          try: async () => {
+            workspace.useTransaction(trx)
+            return await workspace.save()
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while updating workspace.'),
+        }).pipe(telemetry.withTelemetrySpan('update_workspace'))
+
+        return workspace
+      })
+    }
+
+    function remove(payload: ProcessedDataPayload<DeleteWorkspacePayload>) {
+      return Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+
+        /**
+         * Retrieve the workspace using the provided identifier
+         */
+        const workspace = yield* Effect.tryPromise({
+          try: async () => {
+            return await Workspace.query({ client: trx })
+              .where('uid', payload.workspace_identifier.value)
+              .first()
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while retrieving workspace for deletion.'),
+        }).pipe(telemetry.withTelemetrySpan('retrieve_workspace_for_deletion'))
+
+        if (!workspace) {
+          throw new Error(`Workspace with identifier ${payload.workspace_identifier.value} not found.`)
+        }
+
+        /**
+         * Delete the workspace
+         */
+        yield* Effect.tryPromise({
+          try: async () => {
+            workspace.useTransaction(trx)
+            return await workspace.delete()
+          },
+          catch: errorConversion.toUnknownError('Unexpected error occurred while deleting workspace.'),
+        }).pipe(telemetry.withTelemetrySpan('delete_workspace'))
+
+        return workspace
+      })
     }
 
     return {
       availability,
       create,
+      list,
       details,
       update,
       remove,

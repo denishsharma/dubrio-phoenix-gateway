@@ -17,9 +17,17 @@ import AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_wor
 import CreateWorkspacePayload2 from '#modules/workspace/payloads/create_workspace_payload'
 import InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
 import CreateWorkspaceRequestPayload from '#modules/workspace/payloads/requests/create_workspace_request_payload'
+import DeleteWorkspaceRequestPayload from '#modules/workspace/payloads/requests/delete_workspace_request_payload'
+import ListWorkspaceRequestPayload from '#modules/workspace/payloads/requests/list_workspace_request_payload'
+import RetrieveWorkspaceDetailsRequestPayload from '#modules/workspace/payloads/requests/retrieve_workspace_details_request_payload'
+import UpdateWorkspaceDetailsRequestPayload from '#modules/workspace/payloads/requests/update_workspace_details_request_payload'
 import SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
 import SetActiveWorkspace from '#modules/workspace/payloads/set_active_workspace'
 import CreateWorkspacePayload from '#modules/workspace/payloads/workspace_manager/create_workspace_payload'
+import DeleteWorkspacePayload from '#modules/workspace/payloads/workspace_manager/delete_workspace_payload'
+import ListWorkspacePayload from '#modules/workspace/payloads/workspace_manager/list_workspace_payload'
+import RetrieveWorkspaceDetailsPayload from '#modules/workspace/payloads/workspace_manager/retrieve_workspace_details_payload'
+import UpdateWorkspaceDetailsPayload from '#modules/workspace/payloads/workspace_manager/update_workspace_details_payload'
 import SetActiveWorkspaceSessionPayload from '#modules/workspace/payloads/workspace_session/set_active_workspace_session_payload'
 import WorkspaceManagerService from '#modules/workspace/services/workspace_manager_service'
 import WorkspaceService from '#modules/workspace/services/workspace_service'
@@ -258,6 +266,186 @@ export default class WorkspaceController {
           ),
         ),
       ),
+    )
+  }
+
+  async list(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const database = yield* DatabaseService
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
+
+      const authenticationService = yield* AuthenticationService
+      const workspaceManagerService = yield* WorkspaceManagerService
+
+      return yield* Effect.gen(function* () {
+        yield* ListWorkspaceRequestPayload.fromRequest()
+        const user = yield* authenticationService.getAuthenticatedUser
+
+        const workspaces = yield* pipe(
+          DataSource.known({
+            user_identifier: user.id,
+          }),
+          ListWorkspacePayload.fromSource(),
+          Effect.flatMap(workspaceManagerService.list),
+        )
+
+        yield* responseContext.setMessage('Successfully retrieved all workspaces')
+
+        return yield* pipe(
+          DataSource.known(workspaces),
+          UsingResponseEncoder(
+            Schema.Array(
+              Schema.Struct({
+                id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
+                name: Schema.String,
+                slug: Schema.String,
+                website: Schema.optional(Schema.NullOr(Schema.String)),
+                industry: Schema.optional(Schema.NullOr(Schema.String)),
+              }),
+            ),
+          ),
+        )
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('list_workspaces'),
+        telemetry.withScopedTelemetry('workspace-controller'),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
+    )
+  }
+
+  async details(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const database = yield* DatabaseService
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
+
+      const workspaceManagerService = yield* WorkspaceManagerService
+
+      return yield* Effect.gen(function* () {
+        const requestPayload = yield* RetrieveWorkspaceDetailsRequestPayload.fromRequest()
+
+        const workspace = yield* pipe(
+          DataSource.known({
+            workspace_identifier: requestPayload.workspace_identifier,
+          }),
+          RetrieveWorkspaceDetailsPayload.fromSource(),
+          Effect.flatMap(workspaceManagerService.details),
+        )
+
+        yield* responseContext.setMessage('Workspace details retrieved successfully.')
+
+        return yield* pipe(
+          DataSource.known(workspace),
+          UsingResponseEncoder(
+            Schema.Struct({
+              id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
+              name: Schema.String,
+              slug: Schema.String,
+              website: Schema.optional(Schema.NullOr(Schema.String)),
+              industry: Schema.optional(Schema.NullOr(Schema.String)),
+            }),
+          ),
+        )
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('retrieve_workspace_details'),
+        telemetry.withScopedTelemetry('workspace-controller'),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
+    )
+  }
+
+  async update(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const database = yield* DatabaseService
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
+
+      const workspaceManagerService = yield* WorkspaceManagerService
+
+      return yield* Effect.gen(function* () {
+        const requestPayload = yield* UpdateWorkspaceDetailsRequestPayload.fromRequest()
+
+        const updatedWorkspace = yield* pipe(
+          requestPayload.mode === 'replace'
+            ? DataSource.known({
+                workspace_identifier: requestPayload.workspace_identifier,
+                mode: requestPayload.mode,
+                details: requestPayload.details,
+              })
+            : DataSource.known({
+                workspace_identifier: requestPayload.workspace_identifier,
+                mode: requestPayload.mode,
+                details: requestPayload.details,
+              }),
+          UpdateWorkspaceDetailsPayload.fromSource(),
+          Effect.flatMap(workspaceManagerService.update),
+        )
+
+        yield* responseContext.setMessage(`Successfully updated workspace: ${updatedWorkspace.name}`)
+
+        return yield* pipe(
+          DataSource.known(updatedWorkspace),
+          UsingResponseEncoder(
+            Schema.Struct({
+              id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
+              name: Schema.String,
+              slug: Schema.String,
+              website: Schema.optional(Schema.NullOr(Schema.String)),
+              industry: Schema.optional(Schema.NullOr(Schema.String)),
+            }),
+          ),
+        )
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('update_workspace'),
+        telemetry.withScopedTelemetry('workspace-controller'),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
+    )
+  }
+
+  async delete(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const database = yield* DatabaseService
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
+
+      const workspaceManagerService = yield* WorkspaceManagerService
+
+      return yield* Effect.gen(function* () {
+        const requestPayload = yield* DeleteWorkspaceRequestPayload.fromRequest()
+
+        const deletedWorkspace = yield* pipe(
+          DataSource.known({
+            workspace_identifier: requestPayload.workspace_identifier,
+          }),
+          DeleteWorkspacePayload.fromSource(),
+          Effect.flatMap(workspaceManagerService.remove),
+        )
+
+        yield* responseContext.setMessage(`Successfully deleted workspace: ${deletedWorkspace.name}`)
+
+        return yield* pipe(
+          DataSource.known(deletedWorkspace),
+          UsingResponseEncoder(
+            Schema.Struct({
+              name: Schema.String,
+            }),
+          ),
+        )
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('delete_workspace'),
+        telemetry.withScopedTelemetry('workspace-controller'),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
     )
   }
 }
