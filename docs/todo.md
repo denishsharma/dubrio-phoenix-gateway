@@ -1,0 +1,2 @@
+- [ ] Create WorkspaceInvitationToken Schema attribute refer AccountVerificationToken
+- [ ] Use WorkspaceInvitationToken wherever possible
