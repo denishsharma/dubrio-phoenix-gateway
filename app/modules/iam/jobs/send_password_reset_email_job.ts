@@ -1,7 +1,7 @@
 import ErrorConversionService from '#core/error/services/error_conversion_service'
 import { QueueJob } from '#core/queue_job/factories/queue_job'
 import PasswordResetMailNotification from '#modules/iam/notifications/mails/password_reset_mail_notification'
-import { PasswordResetToken } from '#modules/iam/schemas/authentication/authentication_attributes'
+import PasswordResetToken from '#modules/iam/schemas/authentication/password_reset_token'
 import MaskingService from '#shared/common/services/masking_service'
 import env from '#start/env'
 import app from '@adonisjs/core/services/app'
@@ -15,7 +15,7 @@ import { joinURL, normalizeURL, withQuery } from 'ufo'
 export default class SendPasswordResetEmailJob extends QueueJob('modules/iam/send_password_reset_email', import.meta.url)({
   schema: Schema.Struct({
     email_address: Schema.String,
-    token: PasswordResetToken,
+    token: PasswordResetToken.schema,
     expires_in_millis: Schema.Positive,
   }),
   handle: payload => Effect.gen(function* () {

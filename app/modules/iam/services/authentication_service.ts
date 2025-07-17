@@ -1,9 +1,8 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
-import type AuthenticationCredentialsPayload from '#modules/iam/payloads/authentication/authentication_credentials_payload'
+import type AuthenticateWithCredentialsPayload from '#modules/iam/payloads/authentication/authenticate_with_credentials_payload'
 import type QueuePasswordResetEmailPayload from '#modules/iam/payloads/authentication/queue_password_reset_email_payload'
 import type RegisterUserPayload from '#modules/iam/payloads/authentication/register_user_payload'
 import type ResetPasswordPayload from '#modules/iam/payloads/authentication/reset_password_payload'
-import type { Brand } from 'effect'
 import { CacheNamespace } from '#constants/cache_namespace'
 import { DataSource } from '#constants/data_source'
 import DatabaseService from '#core/database/services/database_service'
@@ -14,7 +13,6 @@ import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_stra
 import LucidModelRetrievalService from '#core/lucid/services/lucid_model_retrieval_service'
 import { WithQueueJob } from '#core/queue_job/constants/with_queue_job'
 import QueueJobService from '#core/queue_job/services/queue_job_service'
-import SchemaError from '#core/schema/errors/schema_error'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
 import User from '#models/user_model'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
@@ -25,7 +23,7 @@ import PasswordReuseException from '#modules/iam/exceptions/password_reuse_excep
 import UnauthorizedException from '#modules/iam/exceptions/unauthorized_exception'
 import SendPasswordResetEmailJob from '#modules/iam/jobs/send_password_reset_email_job'
 import GeneratePasswordResetTokenPayload from '#modules/iam/payloads/authentication/generate_password_reset_token_payload'
-import { PasswordResetToken } from '#modules/iam/schemas/authentication/authentication_attributes'
+import PasswordResetToken from '#modules/iam/schemas/authentication/password_reset_token'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import { RetrieveUserUsingIdentifier } from '#shared/retrieval_strategies/user_retrieval_strategy'
 import { UserIdentifier } from '#shared/schemas/user/user_attributes'
@@ -33,7 +31,7 @@ import { errors as authErrors } from '@adonisjs/auth'
 import cache from '@adonisjs/cache/services/main'
 import is from '@adonisjs/core/helpers/is'
 import hash from '@adonisjs/core/services/hash'
-import { Duration, Effect, Exit, flow, Match, pipe, Redacted, Ref, Schema } from 'effect'
+import { Duration, Effect, Exit, Match, pipe, Redacted, Ref } from 'effect'
 
 export default class AuthenticationService extends Effect.Service<AuthenticationService>()('@service/modules/iam/authentication', {
   dependencies: [
@@ -54,7 +52,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
     const typedEffectService = yield* TypedEffectService
     const telemetry = yield* TelemetryService
 
-    function authenticateWithCredentials(payload: ProcessedDataPayload<AuthenticationCredentialsPayload>) {
+    function authenticateWithCredentials(payload: ProcessedDataPayload<AuthenticateWithCredentialsPayload>) {
       return Effect.gen(function* () {
         const { context } = yield* HttpContext
         const ctx = yield* context
@@ -222,12 +220,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
          */
         const token = yield* pipe(
           stringMixer.encode(payload.user_identifier.value),
-          Effect.flatMap(
-            flow(
-              Schema.decode(PasswordResetToken, { errors: 'all' }),
-              SchemaError.fromParseError('Unexpected error occurred while decoding password reset token.'),
-            ),
-          ),
+          Effect.flatMap(data => PasswordResetToken.make(data)),
         )
 
         /**
@@ -238,7 +231,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
           try: async () => {
             return await cache.namespace(CacheNamespace.PASSWORD_RESET_TOKEN).set({
               key: payload.user_identifier.value,
-              value: token,
+              value: token.value,
               ttl: Duration.toMillis(payload.duration),
             })
           },
@@ -258,7 +251,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
          * Decode the token to get the user identifier.
          */
         const [userIdentifier] = yield* pipe(
-          stringMixer.decode(token.value, token.key),
+          stringMixer.decode(token.value.value, token.value.key),
           Effect.catchTag('@error/internal/string_mixer', error => new InvalidPasswordResetTokenException(
             { data: { reason: 'token_invalid' } },
             undefined,
@@ -276,7 +269,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
              */
             return await cache
               .namespace(CacheNamespace.PASSWORD_RESET_TOKEN)
-              .get<Brand.Brand.Unbranded<PasswordResetToken> | null | undefined>({
+              .get<typeof PasswordResetToken.schema.Type | null | undefined>({
                 key: userIdentifier,
                 defaultValue: null,
               })
@@ -295,7 +288,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
          * If token is not matching with the cached token,
          * it means the token is invalid or has been tampered with.
          */
-        if (cachedToken.value !== token.value || cachedToken.key !== token.key) {
+        if (cachedToken.value !== token.value.value || cachedToken.key !== token.value.key) {
           return yield* new InvalidPasswordResetTokenException({ data: { reason: 'token_invalid' } })
         }
 
@@ -341,7 +334,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
             try: async () => {
               return await cache
                 .namespace(CacheNamespace.PASSWORD_RESET_TOKEN)
-                .get<PasswordResetToken | null | undefined>({
+                .get<typeof PasswordResetToken.schema.Type | null | undefined>({
                   key: payload.user.user_identifier.value,
                   defaultValue: null,
                 })
@@ -349,7 +342,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
             catch: errorConversion.toUnknownError('Unexpected error occurred while getting password reset token from cache.', { context: { data: { user_identifier: payload.user.user_identifier.value } } }),
           }),
           Effect.flatMap(
-            Match.type<PasswordResetToken | null | undefined>().pipe(
+            Match.type<typeof PasswordResetToken.schema.Type | null | undefined>().pipe(
               /**
                * If the token is not cached, we generate a new token
                * and cache it for the specified duration.
@@ -370,13 +363,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
                * If the token is cached, we decode it
                * and return it as a PasswordResetToken.
                */
-              Match.orElse(
-                data => Effect.suspend(() => pipe(
-                  data,
-                  Schema.decode(PasswordResetToken, { errors: 'all' }),
-                  SchemaError.fromParseError('Unexpected error occurred while decoding cached password reset token.'),
-                )),
-              ),
+              Match.orElse(data => PasswordResetToken.make(data)),
             ),
           ),
         )
@@ -389,7 +376,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
             SendPasswordResetEmailJob,
             () => ({
               email_address: payload.user.email_address,
-              token,
+              token: token.value,
               expires_in_millis: Duration.toMillis(payload.duration),
             }),
           ),
@@ -404,9 +391,13 @@ export default class AuthenticationService extends Effect.Service<Authentication
         const { trx } = yield* database.requireTransaction()
 
         /**
-         * Verify the forgot password token and retrieve the user identifier.
+         * Extract the user identifier from the payload based on the mode.
+         * If the mode is 'direct', we use the user identifier directly.
+         * If the mode is 'token', we verify the password reset token to get the user identifier.
          */
-        const userIdentifier = yield* verifyPasswordResetToken(payload.token, true)
+        const userIdentifier = yield* payload.mode === 'direct'
+          ? Effect.succeed(payload.user_identifier)
+          : verifyPasswordResetToken(payload.token, true)
 
         /**
          * Retrieve the user from the database using the user identifier.
@@ -544,7 +535,7 @@ export default class AuthenticationService extends Effect.Service<Authentication
        * Reset a user's password.
        * This will update the user's password to the new password provided in the payload.
        *
-       * @param payload - The payload containing token and new password details.
+       * @param payload - The payload containing details for resetting the password.
        */
       resetPassword,
     }

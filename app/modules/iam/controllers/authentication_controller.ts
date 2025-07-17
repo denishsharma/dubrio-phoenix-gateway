@@ -16,19 +16,22 @@ import TelemetryService from '#core/telemetry/services/telemetry_service'
 import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import UnauthorizedException from '#modules/iam/exceptions/unauthorized_exception'
 import QueueVerificationEmailPayload from '#modules/iam/payloads/account/queue_verification_email_payload'
-import AuthenticationCredentialsPayload from '#modules/iam/payloads/authentication/authentication_credentials_payload'
+import AuthenticateWithCredentialsPayload from '#modules/iam/payloads/authentication/authenticate_with_credentials_payload'
 import QueuePasswordResetEmailPayload from '#modules/iam/payloads/authentication/queue_password_reset_email_payload'
 import RegisterUserPayload from '#modules/iam/payloads/authentication/register_user_payload'
 import ResetPasswordPayload from '#modules/iam/payloads/authentication/reset_password_payload'
-import SendPasswordResetEmailPayload from '#modules/iam/payloads/authentication/send_password_reset_email_payload'
-import VerifyPasswordResetTokenPayload from '#modules/iam/payloads/authentication/verify_password_reset_token_payload'
+import VerifyPasswordResetTokenRequestPayload from '#modules/iam/payloads/requests/account/verify_password_reset_token_request_payload'
+import AuthenticateUsingCredentialsRequestPayload from '#modules/iam/payloads/requests/authentication/authenticate_using_credentials_request_payload'
+import RegisterUserRequestPayload from '#modules/iam/payloads/requests/authentication/register_user_request_payload'
+import ResetPasswordRequestPayload from '#modules/iam/payloads/requests/authentication/reset_password_request_payload'
+import SendPasswordResetEmailRequestPayload from '#modules/iam/payloads/requests/authentication/send_password_reset_email_request_payload'
 import AccountVerificationService from '#modules/iam/services/account_verification_service'
 import AuthenticationService from '#modules/iam/services/authentication_service'
 import MaskingService from '#shared/common/services/masking_service'
 import { RetrieveUserUsingColumn } from '#shared/retrieval_strategies/user_retrieval_strategy'
 import { UserIdentifier } from '#shared/schemas/user/user_attributes'
 import is from '@adonisjs/core/helpers/is'
-import { Duration, Effect, Option, pipe, Schema } from 'effect'
+import { Duration, Effect, Option, pipe, Redacted, Schema } from 'effect'
 
 export default class AuthenticationController {
   private telemetryScope = 'authentication-controller'
@@ -54,7 +57,15 @@ export default class AuthenticationController {
 
       return yield* Effect.gen(function* () {
         const user = yield* pipe(
-          AuthenticationCredentialsPayload.fromRequest(),
+          AuthenticateUsingCredentialsRequestPayload.fromRequest(),
+          Effect.flatMap(payload => pipe(
+            payload.validated,
+            Effect.map(data => DataSource.known({
+              email_address: data.email_address,
+              password: data.password,
+            })),
+            Effect.flatMap(AuthenticateWithCredentialsPayload.fromSource()),
+          )),
           Effect.flatMap(authenticationService.authenticateWithCredentials),
 
           /**
@@ -171,7 +182,7 @@ export default class AuthenticationController {
           DataSource.known({
             firstName: user.firstName,
             lastName: user.lastName,
-            email_address: user.email,
+            emailAddress: user.email,
             isAccountVerified: user.isAccountVerified,
             onboardingStatus: user.onboardingStatus,
           }),
@@ -179,7 +190,7 @@ export default class AuthenticationController {
             Schema.Struct({
               firstName: Schema.String,
               lastName: Schema.optional(Schema.NullOr(Schema.String)),
-              email_address: Schema.String,
+              emailAddress: Schema.String,
               isAccountVerified: Schema.Boolean,
               onboardingStatus: Schema.Enums(OnboardingStatus),
             }),
@@ -240,7 +251,17 @@ export default class AuthenticationController {
          * Create the user using the authentication service
          */
         const user = yield* pipe(
-          RegisterUserPayload.fromRequest(),
+          RegisterUserRequestPayload.fromRequest(),
+          Effect.flatMap(payload => pipe(
+            payload.validated,
+            Effect.map(data => DataSource.known({
+              email_address: data.email_address,
+              password: data.password,
+              first_name: data.first_name,
+              last_name: data.last_name,
+            })),
+            Effect.flatMap(RegisterUserPayload.fromSource()),
+          )),
           Effect.flatMap(authenticationService.registerUser),
           typedEffect.ensureSuccessType<User>(),
           typedEffect.overrideSuccessType<SetNonNullable<User, 'email'>>(),
@@ -326,7 +347,7 @@ export default class AuthenticationController {
         /**
          * Extract the payload from the request.
          */
-        const payload = yield* SendPasswordResetEmailPayload.fromRequest()
+        const payload = yield* SendPasswordResetEmailRequestPayload.fromRequest()
         const maskedEmailAddress = yield* masking.maskEmail(payload.email_address)
 
         /**
@@ -404,7 +425,15 @@ export default class AuthenticationController {
 
       return yield* Effect.gen(function* () {
         yield* pipe(
-          ResetPasswordPayload.fromRequest(),
+          ResetPasswordRequestPayload.fromRequest(),
+          Effect.flatMap(payload => pipe(
+            DataSource.known({
+              mode: 'token' as const,
+              token: payload.token,
+              password: Redacted.value(payload.password),
+            }),
+            ResetPasswordPayload.fromSource(),
+          )),
           Effect.flatMap(authenticationService.resetPassword),
         )
 
@@ -440,7 +469,7 @@ export default class AuthenticationController {
         /**
          * Extract the payload from the request.
          */
-        const payload = yield* VerifyPasswordResetTokenPayload.fromRequest()
+        const payload = yield* VerifyPasswordResetTokenRequestPayload.fromRequest()
 
         /**
          * Call the service to verify the token (without consuming it).

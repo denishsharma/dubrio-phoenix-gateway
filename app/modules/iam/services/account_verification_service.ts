@@ -1,7 +1,6 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
 import type { UserModelFields } from '#models/user_model'
 import type QueueVerificationEmailPayload from '#modules/iam/payloads/account/queue_verification_email_payload'
-import type VerifyAccountPayload from '#modules/iam/payloads/account/verify_account_payload'
 import type { Spread } from 'type-fest'
 import { CacheNamespace } from '#constants/cache_namespace'
 import { DataSource } from '#constants/data_source'
@@ -17,14 +16,14 @@ import NoSuchElementError from '#errors/no_such_element_error'
 import InvalidAccountVerificationTokenException from '#modules/iam/exceptions/invalid_account_verification_token_exception'
 import SendAccountVerificationEmailJob from '#modules/iam/jobs/send_account_verification_email_job'
 import GenerateVerificationTokenPayload from '#modules/iam/payloads/account/generate_verification_token_payload'
-import { AccountVerificationToken } from '#modules/iam/schemas/account/account_attributes'
+import AccountVerificationToken from '#modules/iam/schemas/account/account_verification_token'
 import AccountVerificationTokenDetails from '#modules/iam/schemas/account/account_verification_token_details_schema'
 import StringMixerService from '#shared/common/services/string_mixer_service'
 import { RetrieveUserUsingIdentifier } from '#shared/retrieval_strategies/user_retrieval_strategy'
 import { UserIdentifier } from '#shared/schemas/user/user_attributes'
 import cache from '@adonisjs/cache/services/main'
 import is from '@adonisjs/core/helpers/is'
-import { Duration, Effect, Exit, flow, Match, pipe, Schema } from 'effect'
+import { Duration, Effect, Exit, Match, pipe, Schema } from 'effect'
 
 export default class AccountVerificationService extends Effect.Service<AccountVerificationService>()('@service/modules/iam/account_verification', {
   dependencies: [
@@ -51,38 +50,38 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
          */
         const token = yield* pipe(
           stringMixer.encode(payload.user.identifier.value, payload.user.email_address),
-          Effect.flatMap(
-            flow(
-              Schema.decode(AccountVerificationToken, { errors: 'all' }),
-              SchemaError.fromParseError('Unexpected error occurred while decoding the account verification token.'),
-            ),
-          ),
+          Effect.flatMap(data => AccountVerificationToken.make(data, { error: { message: 'Unexpected error occurred while creating the account verification token.' } })),
         )
 
         /**
          * Create the details object that will be cached.
          */
         const details = yield* Effect.suspend(() => pipe(
-          {
-            user_identifier: payload.user.identifier,
-            email_address: payload.user.email_address,
-            duration: payload.duration,
-            token,
-          },
-          Schema.decode(AccountVerificationTokenDetails, { errors: 'all' }),
-          SchemaError.fromParseError('Unexpected error occurred while decoding the account verification token details.'),
+          AccountVerificationTokenDetails.make(
+            {
+              user_identifier: payload.user.identifier,
+              email_address: payload.user.email_address,
+              duration: payload.duration,
+              token: token.value,
+            },
+            {
+              error: {
+                message: 'Unexpected error occurred while creating the account verification token details.',
+              },
+            },
+          ),
           Effect.flatMap(
             data => Effect.gen(function* () {
               const cachedDetails = yield* pipe(
                 {
-                  user_identifier: data.user_identifier.value,
-                  email_address: data.email_address,
-                  token: data.token,
-                  duration: Duration.toMillis(data.duration),
+                  user_identifier: data.value.user_identifier.value,
+                  email_address: data.value.email_address,
+                  token: data.value.token,
+                  duration: Duration.toMillis(data.value.duration),
                 },
                 Schema.encode(
                   Schema.extend(
-                    AccountVerificationTokenDetails.pipe(
+                    AccountVerificationTokenDetails.schema.pipe(
                       Schema.omit('user_identifier'),
                       Schema.omit('duration'),
                     ),
@@ -113,7 +112,7 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
               .set({
                 key: details.cached.user_identifier,
                 value: details.cached,
-                ttl: Duration.toMillis(details.original.duration),
+                ttl: Duration.toMillis(details.original.value.duration),
               })
           },
           catch: errorConversion.toUnknownError('Unexpected error occurred while caching the account verification token details.', { context: { data: { user_identifier: payload.user.identifier.value } } }),
@@ -138,7 +137,7 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
           Match.when(UserIdentifier.is, identifier => Effect.succeed(identifier.value)),
           Match.orElse(
             (token: AccountVerificationToken) => pipe(
-              stringMixer.decode(token.value, token.key),
+              stringMixer.decode(token.value.value, token.value.key),
               Effect.map(([identifier]) => identifier),
               Effect.catchTag('@error/internal/string_mixer', error => new InvalidAccountVerificationTokenException({ data: { reason: 'token_invalid' } }, undefined, { cause: error })),
             ),
@@ -153,7 +152,7 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
           try: async () => {
             return await cache
               .namespace(CacheNamespace.ACCOUNT_VERIFICATION_TOKEN)
-              .get<Spread<Omit<typeof AccountVerificationTokenDetails.Encoded, 'user_identifier' | 'duration'>, { user_identifier: string; duration: number }> | null | undefined>({
+              .get<Spread<Omit<typeof AccountVerificationTokenDetails.schema.Encoded, 'user_identifier' | 'duration'>, { user_identifier: string; duration: number }> | null | undefined>({
                 key: userIdentifier,
                 defaultValue: null,
               })
@@ -172,16 +171,19 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
         /**
          * Decode the cached details into the AccountVerificationTokenDetails schema.
          */
-        return yield* Effect.suspend(() => pipe(
+        return yield* AccountVerificationTokenDetails.make(
           {
             user_identifier: UserIdentifier.make(cachedDetails.user_identifier),
             email_address: cachedDetails.email_address,
             token: cachedDetails.token,
             duration: Duration.millis(cachedDetails.duration),
           },
-          Schema.decode(AccountVerificationTokenDetails, { errors: 'all' }),
-          SchemaError.fromParseError('Unexpected error occurred while decoding account verification token details.', { context: { data: { user_identifier: userIdentifier } } }),
-        )).pipe(telemetry.withTelemetrySpan('decode_account_verification_token_details'))
+          {
+            error: {
+              message: 'Unexpected error occurred while decoding the account verification token details.',
+            },
+          },
+        ).pipe(telemetry.withTelemetrySpan('decode_account_verification_token_details'))
       }).pipe(telemetry.withTelemetrySpan('retrieve_account_verification_token_details'))
     }
 
@@ -197,7 +199,7 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
             try: async () => {
               return await cache
                 .namespace(CacheNamespace.ACCOUNT_VERIFICATION_TOKEN)
-                .get<Spread<Omit<typeof AccountVerificationTokenDetails.Encoded, 'user_identifier' | 'duration'>, { user_identifier: string; duration: number }> | null | undefined>({
+                .get<Spread<Omit<typeof AccountVerificationTokenDetails.schema.Encoded, 'user_identifier' | 'duration'>, { user_identifier: string; duration: number }> | null | undefined>({
                   key: payload.user.identifier.value,
                   defaultValue: null,
                 })
@@ -205,7 +207,7 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
             catch: errorConversion.toUnknownError('Unexpected error occurred while getting account verification token from cache.', { context: { data: { user_identifier: payload.user.identifier.value } } }),
           }),
           Effect.flatMap(
-            Match.type<Spread<Omit<typeof AccountVerificationTokenDetails.Encoded, 'user_identifier' | 'duration'>, { user_identifier: string; duration: number }> | null | undefined>().pipe(
+            Match.type<Spread<Omit<typeof AccountVerificationTokenDetails.schema.Encoded, 'user_identifier' | 'duration'>, { user_identifier: string; duration: number }> | null | undefined>().pipe(
               /**
                * If the token is not cached, generate a new one.
                */
@@ -228,16 +230,19 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
                * If the token is cached, decode it and return it.
                */
               Match.orElse(
-                details => Effect.suspend(() => pipe(
+                details => AccountVerificationTokenDetails.make(
                   {
                     user_identifier: UserIdentifier.make(details.user_identifier),
                     email_address: details.email_address,
                     token: details.token,
                     duration: Duration.millis(details.duration),
                   },
-                  Schema.decode(AccountVerificationTokenDetails, { errors: 'all' }),
-                  SchemaError.fromParseError('Unexpected error occurred while decoding cached account verification token details.', { context: { data: { user_identifier: details.user_identifier } } }),
-                )),
+                  {
+                    error: {
+                      message: 'Unexpected error occurred while decoding the cached account verification token details.',
+                    },
+                  },
+                ),
               ),
             ),
           ),
@@ -251,8 +256,8 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
           WithQueueJob(
             SendAccountVerificationEmailJob,
             () => ({
-              email_address: tokenDetails.email_address,
-              token: tokenDetails.token,
+              email_address: tokenDetails.value.email_address,
+              token: tokenDetails.value.token.value,
             }),
           ),
           queueJob.dispatch,
@@ -261,7 +266,7 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
       }).pipe(telemetry.withTelemetrySpan('queue_verification_email'))
     }
 
-    function verifyAccount(payload: ProcessedDataPayload<VerifyAccountPayload>) {
+    function verifyAccount(token: AccountVerificationToken) {
       return Effect.gen(function* () {
         const { trx } = yield* database.requireTransaction()
 
@@ -270,9 +275,9 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
          * If the token is not found or does not match the provided token, throw an InvalidAccountVerificationTokenException.
          */
         const details = yield* pipe(
-          retrieveTokenDetails(payload.token),
+          retrieveTokenDetails(token),
           Effect.tap(
-            data => Effect.if((data.token.value !== payload.token.value || data.token.key !== payload.token.key), {
+            data => Effect.if((data.value.token.value.value !== token.value.value || data.value.token.value.key !== token.value.key), {
               onTrue: () => new InvalidAccountVerificationTokenException(
                 { data: { reason: 'token_invalid' } },
                 'Account verification token seems to be invalid.',
@@ -300,10 +305,10 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
                 return await cache
                   .namespace(CacheNamespace.ACCOUNT_VERIFICATION_TOKEN)
                   .delete({
-                    key: details.user_identifier.value,
+                    key: details.value.user_identifier.value,
                   })
               },
-              catch: errorConversion.toUnknownError('Unexpected error occurred while deleting account verification token from cache.', { context: { data: { user_identifier: details.user_identifier.value } } }),
+              catch: errorConversion.toUnknownError('Unexpected error occurred while deleting account verification token from cache.', { context: { data: { user_identifier: details.value.user_identifier.value } } }),
             }).pipe(Effect.ignore),
           }),
         )
@@ -315,7 +320,7 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
         const user = yield* pipe(
           WithRetrievalStrategy(
             RetrieveUserUsingIdentifier,
-            retrieve => retrieve(details.user_identifier),
+            retrieve => retrieve(details.value.user_identifier),
             {
               query: {
                 client: trx,
