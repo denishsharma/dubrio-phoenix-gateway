@@ -1,0 +1,77 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "#controllers/*": [
+        "app/controllers/*.ts"
+      ],
+      "#exceptions/*": [
+        "app/exceptions/*.ts"
+      ],
+      "#models/*": [
+        "app/models/*.ts"
+      ],
+      "#mails/*": [
+        "app/mails/*.ts"
+      ],
+      "#services/*": [
+        "app/services/*.ts"
+      ],
+      "#listeners/*": [
+        "app/listeners/*.ts"
+      ],
+      "#events/*": [
+        "app/events/*.ts"
+      ],
+      "#middleware/*": [
+        "app/middleware/*.ts"
+      ],
+      "#validators/*": [
+        "app/validators/*.ts"
+      ],
+      "#providers/*": [
+        "providers/*.ts"
+      ],
+      "#policies/*": [
+        "app/policies/*.ts"
+      ],
+      "#abilities/*": [
+        "app/abilities/*.ts"
+      ],
+      "#core/*": [
+        "app/core/*.ts"
+      ],
+      "#shared/*": [
+        "app/shared/*.ts"
+      ],
+      "#modules/*": [
+        "app/modules/*.ts"
+      ],
+      "#errors/*": [
+        "app/errors/*.ts"
+      ],
+      "#constants/*": [
+        "app/constants/*.ts"
+      ],
+      "#types/*": [
+        "app/types/*.ts"
+      ],
+      "#extensions/*": [
+        "extensions/*.ts"
+      ],
+      "#database/*": [
+        "database/*.ts"
+      ],
+      "#start/*": [
+        "start/*.ts"
+      ],
+      "#tests/*": [
+        "tests/*.ts"
+      ],
+      "#config/*": [
+        "config/*.ts"
+      ]
+    }
+  }
+}

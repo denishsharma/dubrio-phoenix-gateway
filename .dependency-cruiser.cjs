@@ -212,7 +212,7 @@ module.exports = {
     /* Which modules to exclusively include (array of regular expressions in strings)
        dependency-cruiser will skip everything not matching this pattern
     */
-    // includeOnly : [''],
+    includeOnly: ['app/(?!models)[^/]+'],
 
     /* List of module systems to cruise.
        When left out dependency-cruiser will fall back to the list of _all_
@@ -273,7 +273,7 @@ module.exports = {
        defaults to './tsconfig.json'.
      */
     tsConfig: {
-      fileName: 'tsconfig.json',
+      fileName: 'tsconfig.depcruise.json',
     },
 
     /* Webpack configuration to use to get resolve options from.
