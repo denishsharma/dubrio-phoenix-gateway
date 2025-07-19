@@ -19,7 +19,7 @@ import { WorkspaceMemberStatus } from '#modules/workspace/constants/workspace_me
 import WorkspaceInviteException from '#modules/workspace/exceptions/workspace_invite_exception'
 import SendWorkspaceInviteEmailJob from '#modules/workspace/jobs/send_workspace_invite_email_job'
 import StringMixerService from '#shared/common/services/string_mixer_service'
-import { RetrieveActiveWorkspace } from '#shared/retrieval_strategies/workspace_retrieval_strategy'
+import { RetrieveWorkspaceUsingIdentifier } from '#shared/retrieval_strategies/workspace_retrieval_strategy'
 import cache from '@adonisjs/cache/services/main'
 import { Effect, pipe, Redacted, Schema } from 'effect'
 
@@ -96,19 +96,11 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
       return Effect.gen(function* () {
         const invitedByUser = yield* authenticationService.getAuthenticatedUser
         const { trx } = yield* database.requireTransaction()
-        // const workspace = yield* Effect.tryPromise({
-        //   try: () => Workspace.query()
-        //     .where('uid', currentActiveWorkspaceId)
-        //     .first(),
-        //   catch: WorkspaceInviteException.fromUnknownError(
-        //     'The workspace you are trying to invite users to was not found.',
-        //   ),
-        // })
 
         const workspace = yield* pipe(
           WithRetrievalStrategy(
-            RetrieveActiveWorkspace,
-            retrieve => retrieve(),
+            RetrieveWorkspaceUsingIdentifier,
+            retrieve => retrieve(payload.workspace_identifier),
             {
               exception: {
                 throw: true,

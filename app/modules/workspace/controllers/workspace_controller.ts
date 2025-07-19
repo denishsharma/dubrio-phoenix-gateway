@@ -26,6 +26,7 @@ import CreateWorkspacePayload from '#modules/workspace/payloads/workspace_manage
 import DeleteWorkspacePayload from '#modules/workspace/payloads/workspace_manager/delete_workspace_payload'
 import ListWorkspacePayload from '#modules/workspace/payloads/workspace_manager/list_workspace_payload'
 import RetrieveWorkspaceDetailsPayload from '#modules/workspace/payloads/workspace_manager/retrieve_workspace_details_payload'
+import SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/workspace_manager/send_workspace_invite_email_payload'
 import UpdateWorkspaceDetailsPayload from '#modules/workspace/payloads/workspace_manager/update_workspace_details_payload'
 import SetActiveWorkspaceSessionPayload from '#modules/workspace/payloads/workspace_session/set_active_workspace_session_payload'
 import WorkspaceManagerService from '#modules/workspace/services/workspace_manager_service'
@@ -163,13 +164,18 @@ export default class WorkspaceController {
       return yield* Effect.gen(function* () {
         const payload = yield* SendWorkspaceInviteEmailRequestPayload.fromRequest()
 
-        // TODO: Get active workspace using WorkspaceSessionService
-
-        const result = yield* workspaceService.sendWorkspaceInviteEmail(payload)
+        const workspace = yield* pipe(
+          DataSource.known({
+            workspace_identifier: payload.workspace_identifier,
+            invitees: payload.invitees,
+          }),
+          SendWorkspaceInviteEmailPayload.fromSource(),
+          Effect.flatMap(workspaceService.sendWorkspaceInviteEmail),
+        )
 
         yield* responseContext.annotateMetadata({
           invitees_count: payload.invitees.length,
-          success: result.success,
+          success: workspace.success,
         })
 
         yield* responseContext.setMessage(`Successfully sent workspace invites to ${payload.invitees.length} recipients.`)
@@ -178,7 +184,7 @@ export default class WorkspaceController {
           DataSource.known({
             message: `Successfully sent workspace invites to ${payload.invitees.length} recipients.`,
             invitees: payload.invitees,
-            success: result.success,
+            success: workspace.success,
           }),
           UsingResponseEncoder(
             Schema.Struct({

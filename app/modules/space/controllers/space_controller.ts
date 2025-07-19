@@ -18,7 +18,7 @@ import DeleteSpacePayload from '#modules/space/payloads/space_manager/delete_spa
 import ListSpacePayload from '#modules/space/payloads/space_manager/list_space_payload'
 import RetrieveSpaceDetailsPayload from '#modules/space/payloads/space_manager/retrieve_space_details_payload'
 import UpdateSpacePayload from '#modules/space/payloads/space_manager/update_space_payload'
-import SpaceService from '#modules/space/services/space_service'
+import SpaceService from '#modules/space/services/space_manager_service'
 import { Effect, pipe, Schema } from 'effect'
 
 export default class SpaceController {

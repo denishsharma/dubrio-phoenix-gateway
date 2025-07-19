@@ -10,8 +10,9 @@ import ErrorConversionService from '#core/error/services/error_conversion_servic
 import { WithRetrievalStrategy } from '#core/lucid/constants/with_retrieval_strategy'
 import LucidModelRetrievalService from '#core/lucid/services/lucid_model_retrieval_service'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
+import ResourceNotFoundException from '#exceptions/resource_not_found_exception'
 import AuthenticationService from '#modules/iam/services/authentication_service'
-import SpaceAccessDeniedException from '#modules/space/exception/space_access_denied_exception'
+import { RetrieveSpaceUsingIdentifier } from '#shared/retrieval_strategies/space_retrieval_strategy'
 import { RetrieveWorkspaceUsingIdentifier } from '#shared/retrieval_strategies/workspace_retrieval_strategy'
 import { Effect, pipe } from 'effect'
 
@@ -134,10 +135,43 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
         /**
          * Retrieve the workspace using the provided identifier from the payload.
          */
-        const workspace = yield* pipe(
+        // const workspace = yield* pipe(
+        //   WithRetrievalStrategy(
+        //     RetrieveWorkspaceUsingIdentifier,
+        //     retrieve => retrieve(payload.workspace_identifier),
+        //     {
+        //       exception: {
+        //         throw: true,
+        //       },
+        //       query: {
+        //         client: trx,
+        //       },
+        //     },
+        //   ),
+        //   lucidModelRetrieval.retrieve,
+        // )
+
+        // TODO: Implement the bouncer logic to check if the user has access to the workspace
+
+        /**
+         * Retrieve the space by identifier from the workspace.
+         *
+         * TODO: use retrieval strategy to fetch the space using identifier and then check if the user has access to the space.
+         */
+        // const space = yield* Effect.tryPromise({
+        //   try: () => workspace
+        //     .related('spaces')
+        //     .query()
+        //     .where('uid', payload.space_identifier.value)
+        //     .andWhere('workspace_id', workspace.id)
+        //     .first(),
+        //   catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space details.'),
+        // }).pipe(telemetry.withTelemetrySpan('fetch_space_details'))
+
+        const space = yield* pipe(
           WithRetrievalStrategy(
-            RetrieveWorkspaceUsingIdentifier,
-            retrieve => retrieve(payload.workspace_identifier),
+            RetrieveSpaceUsingIdentifier,
+            retrieve => retrieve(payload.space_identifier),
             {
               exception: {
                 throw: true,
@@ -148,28 +182,13 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
             },
           ),
           lucidModelRetrieval.retrieve,
+          Effect.flatMap((data) => {
+            if (!data) {
+              throw new ResourceNotFoundException({ data: { resource: 'space' } })
+            }
+            return Effect.succeed(data)
+          }),
         )
-
-        // TODO: Implement the bouncer logic to check if the user has access to the workspace
-
-        /**
-         * Retrieve the space by identifier from the workspace.
-         *
-         * TODO: use retrieval strategy to fetch the space using identifier and then check if the user has access to the space.
-         */
-        const space = yield* Effect.tryPromise({
-          try: () => workspace
-            .related('spaces')
-            .query()
-            .where('uid', payload.space_identifier.value)
-            .andWhere('workspace_id', workspace.id)
-            .first(),
-          catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space details.'),
-        }).pipe(telemetry.withTelemetrySpan('fetch_space_details'))
-
-        if (!space) {
-          throw new SpaceAccessDeniedException(`Space with identifier ${payload.space_identifier.value} not found in the specified workspace.`)
-        }
 
         return space
       }).pipe(telemetry.withTelemetrySpan('retrieve_space_details', { attributes: { space_identifier: payload.space_identifier } }))
@@ -182,10 +201,43 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
         /**
          * Retrieve the workspace using the provided identifier from the payload.
          */
-        const workspace = yield* pipe(
+        // const workspace = yield* pipe(
+        //   WithRetrievalStrategy(
+        //     RetrieveWorkspaceUsingIdentifier,
+        //     retrieve => retrieve(payload.workspace_identifier),
+        //     {
+        //       exception: {
+        //         throw: true,
+        //       },
+        //       query: {
+        //         client: trx,
+        //       },
+        //     },
+        //   ),
+        //   lucidModelRetrieval.retrieve,
+        // )
+
+        /**
+         * Fetch the space by identifier from the workspace.
+         */
+        // const space = yield* Effect.tryPromise({
+        //   try: () => workspace
+        //     .related('spaces')
+        //     .query()
+        //     .where('uid', payload.space_identifier.value)
+        //     .andWhere('workspace_id', workspace.id)
+        //     .first(),
+        //   catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space for update.'),
+        // }).pipe(telemetry.withTelemetrySpan('fetch_space_for_update'))
+
+        // if (!space) {
+        //   throw new SpaceAccessDeniedException(`Space with identifier ${payload.space_identifier.value} not found in the specified workspace.`)
+        // }
+
+        const space = yield* pipe(
           WithRetrievalStrategy(
-            RetrieveWorkspaceUsingIdentifier,
-            retrieve => retrieve(payload.workspace_identifier),
+            RetrieveSpaceUsingIdentifier,
+            retrieve => retrieve(payload.space_identifier),
             {
               exception: {
                 throw: true,
@@ -196,24 +248,13 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
             },
           ),
           lucidModelRetrieval.retrieve,
+          Effect.flatMap((data) => {
+            if (!data) {
+              throw new ResourceNotFoundException({ data: { resource: 'space' } })
+            }
+            return Effect.succeed(data)
+          }),
         )
-
-        /**
-         * Fetch the space by identifier from the workspace.
-         */
-        const space = yield* Effect.tryPromise({
-          try: () => workspace
-            .related('spaces')
-            .query()
-            .where('uid', payload.space_identifier.value)
-            .andWhere('workspace_id', workspace.id)
-            .first(),
-          catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space for update.'),
-        }).pipe(telemetry.withTelemetrySpan('fetch_space_for_update'))
-
-        if (!space) {
-          throw new SpaceAccessDeniedException(`Space with identifier ${payload.space_identifier.value} not found in the specified workspace.`)
-        }
 
         /**
          * Update the space with the provided data.
@@ -253,10 +294,29 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
         /**
          * Retrieve the workspace using the provided identifier from the payload.
          */
-        const workspace = yield* pipe(
+        // const workspace = yield* pipe(
+        //   WithRetrievalStrategy(
+        //     RetrieveWorkspaceUsingIdentifier,
+        //     retrieve => retrieve(payload.workspace_identifier),
+        //     {
+        //       exception: {
+        //         throw: true,
+        //       },
+        //       query: {
+        //         client: trx,
+        //       },
+        //     },
+        //   ),
+        //   lucidModelRetrieval.retrieve,
+        // )
+
+        /**
+         * Fetch the space by identifier from the workspace.
+         */
+        const space = yield* pipe(
           WithRetrievalStrategy(
-            RetrieveWorkspaceUsingIdentifier,
-            retrieve => retrieve(payload.workspace_identifier),
+            RetrieveSpaceUsingIdentifier,
+            retrieve => retrieve(payload.space_identifier),
             {
               exception: {
                 throw: true,
@@ -267,24 +327,13 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
             },
           ),
           lucidModelRetrieval.retrieve,
+          Effect.flatMap((data) => {
+            if (!data) {
+              throw new ResourceNotFoundException({ data: { resource: 'space' } })
+            }
+            return Effect.succeed(data)
+          }),
         )
-
-        /**
-         * Fetch the space by identifier from the workspace.
-         */
-        const space = yield* Effect.tryPromise({
-          try: () => workspace
-            .related('spaces')
-            .query()
-            .where('uid', payload.space_identifier.value)
-            .andWhere('workspace_id', workspace.id)
-            .first(),
-          catch: errorConversion.toUnknownError('Unexpected error occurred while fetching the space for deletion.'),
-        }).pipe(telemetry.withTelemetrySpan('fetch_space_for_deletion'))
-
-        if (!space) {
-          throw new SpaceAccessDeniedException(`Space with identifier ${payload.space_identifier.value} not found in the specified workspace.`)
-        }
 
         /**
          * Delete the space.
