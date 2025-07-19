@@ -1,5 +1,6 @@
 import { ExceptionCode } from '#constants/exception_code'
 import { Exception } from '#core/error/factories/exception'
+import { SnakeCaseStringSchema } from '#shared/schemas/general/string'
 import { Schema } from 'effect'
 import { StatusCodes } from 'http-status-codes'
 
@@ -13,8 +14,8 @@ export default class ForbiddenActionException extends Exception('forbidden_actio
   status: StatusCodes.FORBIDDEN,
   code: ExceptionCode.E_FORBIDDEN_ACTION,
   schema: Schema.Struct({
-    action: Schema.Uppercase,
-    target: Schema.String,
+    action: Schema.compose(Schema.Lowercase, SnakeCaseStringSchema),
+    target: Schema.compose(Schema.Lowercase, SnakeCaseStringSchema),
     reason: Schema.String,
   }),
 }) {}

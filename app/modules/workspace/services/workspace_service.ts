@@ -2,7 +2,7 @@ import type { ProcessedDataPayload } from '#core/data_payload/factories/data_pay
 import type AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
 import type CreateWorkspacePayload from '#modules/workspace/payloads/create_workspace_payload'
 import type InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
-import type SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/send_workspace_invite_email_payload'
+import type SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/workspace_manager/send_workspace_invite_email_payload'
 import { CacheNamespace } from '#constants/cache_namespace'
 import DatabaseService from '#core/database/services/database_service'
 import ErrorConversionService from '#core/error/services/error_conversion_service'
@@ -193,8 +193,8 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
     function acceptInvite(payload: ProcessedDataPayload<AcceptWorkspaceInvitePayload>) {
       return Effect.gen(function* () {
-        const token = payload.token.value
-        const key = payload.token.key
+        const token = payload.token.value.value
+        const key = payload.token.value.key
 
         const [workspaceId, inviteeEmail] = yield* stringMixer.decode(token, key)
 
@@ -419,8 +419,8 @@ export default class WorkspaceService extends Effect.Service<WorkspaceService>()
 
     function getInviteDetails(payload: ProcessedDataPayload<InviteDetailsPayload>) {
       return Effect.gen(function* () {
-        const token = payload.token.value
-        const key = payload.token.key
+        const token = payload.token.value.value
+        const key = payload.token.value.key
 
         const decodedDetails = yield* stringMixer.decode(token, key)
 

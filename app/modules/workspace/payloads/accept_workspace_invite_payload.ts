@@ -1,7 +1,9 @@
 import { DataPayloadKind } from '#core/data_payload/constants/data_payload_kind'
 import { DataPayload } from '#core/data_payload/factories/data_payload'
+import SchemaFromSchemaAttribute from '#core/schema/utils/schema_from_schema_attribute'
+import WorkspaceInvitationToken from '#modules/workspace/schemas/workspace_member/workspace_invitation_token'
 import vine from '@vinejs/vine'
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 
 const ACCEPT_VALIDATION_SCHEMA = {
   mode: vine.literal('accept'),
@@ -44,10 +46,7 @@ export default class AcceptWorkspaceInvitePayload extends DataPayload('modules/w
   ),
   schema: Schema.extend(
     Schema.Struct({
-      token: Schema.Struct({
-        value: Schema.String,
-        key: Schema.String,
-      }),
+      token: SchemaFromSchemaAttribute(WorkspaceInvitationToken),
     }),
     Schema.Union(
       Schema.Struct({
@@ -65,4 +64,27 @@ export default class AcceptWorkspaceInvitePayload extends DataPayload('modules/w
       }),
     ),
   ),
+  mapToSchema: payload => Effect.gen(function* () {
+    const token = yield* WorkspaceInvitationToken.make(payload.token)
+    if (payload.mode === 'accept') {
+      return { token, mode: payload.mode }
+    }
+    if (payload.mode === 'register') {
+      return {
+        token,
+        mode: payload.mode,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        password: payload.password,
+      }
+    }
+    if (payload.mode === 'login') {
+      return {
+        token,
+        mode: payload.mode,
+        password: payload.password,
+      }
+    }
+    throw new Error('Invalid mode in AcceptWorkspaceInvitePayload.mapToSchema')
+  }),
 }) {}

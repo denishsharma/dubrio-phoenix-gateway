@@ -154,6 +154,8 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
 
         /**
          * Retrieve the space by identifier from the workspace.
+         *
+         * TODO: use retrieval strategy to fetch the space using identifier and then check if the user has access to the space.
          */
         const space = yield* Effect.tryPromise({
           try: () => workspace

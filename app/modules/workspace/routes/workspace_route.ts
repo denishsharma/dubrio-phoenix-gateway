@@ -4,18 +4,20 @@ import router from '@adonisjs/core/services/router'
 const WorkspaceController = () => import('#modules/workspace/controllers/workspace_controller')
 
 router.group(() => {
-  router.post('/', [WorkspaceController, 'create']).middleware([middleware.auth()])
+  router.post('/', [WorkspaceController, 'create'])
 
-  router.post('/create', [WorkspaceController, 'createWorkspace']).middleware([middleware.auth()])
+  router.post('/active', [WorkspaceController, 'setActiveWorkspace'])
 
-  router.post('/active', [WorkspaceController, 'setActiveWorkspace']).middleware([middleware.auth()])
-
-  router.post('/invite', [WorkspaceController, 'sendWorkspaceInviteEmail']).middleware([middleware.auth(), middleware.activeWorkspace()])
+  router.post('/invite', [WorkspaceController, 'sendWorkspaceInviteEmail'])
   router.post('/invite/accept', [WorkspaceController, 'acceptInvite'])
   router.post('/invite/details', [WorkspaceController, 'getInviteDetails'])
 
-  router.get('/', [WorkspaceController, 'list']).middleware([middleware.auth()])
-  router.get('/:id', [WorkspaceController, 'details']).middleware([middleware.auth()])
-  router.put('/:id', [WorkspaceController, 'update']).middleware([middleware.auth()])
-  router.delete('/:id', [WorkspaceController, 'delete']).middleware([middleware.auth()])
-}).prefix('workspaces')
+  router.get('/', [WorkspaceController, 'list'])
+  router.get('/:id', [WorkspaceController, 'details'])
+  router.put('/:id', [WorkspaceController, 'update'])
+  router.delete('/:id', [WorkspaceController, 'delete'])
+
+  router.group(() => {
+
+  }).prefix('members')
+}).prefix('workspaces').middleware([middleware.auth()])

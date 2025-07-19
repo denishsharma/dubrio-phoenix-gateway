@@ -1,5 +1,7 @@
 import { DataPayloadKind } from '#core/data_payload/constants/data_payload_kind'
 import { DataPayload } from '#core/data_payload/factories/data_payload'
+import SchemaFromSchemaAttribute from '#core/schema/utils/schema_from_schema_attribute'
+import WorkspaceInvitationToken from '#modules/workspace/schemas/workspace_member/workspace_invitation_token'
 import vine from '@vinejs/vine'
 import { Effect, Schema } from 'effect'
 
@@ -16,19 +18,13 @@ export default class VerifyInviteUserPayload extends DataPayload('modules/worksp
     }),
   ),
   schema: Schema.Struct({
-    token: Schema.Struct({
-      value: Schema.String,
-      key: Schema.String,
-    }),
+    token: SchemaFromSchemaAttribute(WorkspaceInvitationToken),
   }),
-  mapToSchema: (payload) => {
-    return Effect.sync(() => {
-      return {
-        token: {
-          value: payload.__params.token,
-          key: payload.__qs.k,
-        },
-      }
+  mapToSchema: payload => Effect.gen(function* () {
+    const token = yield* WorkspaceInvitationToken.make({
+      value: payload.__params.token,
+      key: payload.__qs.k,
     })
-  },
+    return { token }
+  }),
 }) {}

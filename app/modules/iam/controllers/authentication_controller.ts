@@ -193,6 +193,7 @@ export default class AuthenticationController {
               emailAddress: Schema.String,
               isAccountVerified: Schema.Boolean,
               onboardingStatus: Schema.Enums(OnboardingStatus),
+              // TODO: Fetch the default workspace and include it in the response
             }),
           ),
         )

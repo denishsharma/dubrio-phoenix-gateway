@@ -4,11 +4,11 @@ import router from '@adonisjs/core/services/router'
 const SpaceController = () => import('#modules/space/controllers/space_controller')
 
 router.group(() => {
-  router.post('/:id', [SpaceController, 'update']).middleware([middleware.auth()])
-  router.post('/', [SpaceController, 'create']).middleware([middleware.auth()])
+  router.post('/:id', [SpaceController, 'update'])
+  router.post('/', [SpaceController, 'create'])
 
-  router.get('/:id', [SpaceController, 'details']).middleware([middleware.auth()])
-  router.get('/', [SpaceController, 'list']).middleware([middleware.auth()])
+  router.get('/:id', [SpaceController, 'details'])
+  router.get('/', [SpaceController, 'list'])
 
-  router.delete('/:id', [SpaceController, 'delete']).middleware([middleware.auth()])
-}).prefix('spaces')
+  router.delete('/:id', [SpaceController, 'delete'])
+}).prefix('spaces').middleware([middleware.auth()])

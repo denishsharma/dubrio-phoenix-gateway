@@ -22,6 +22,8 @@ import SpaceService from '#modules/space/services/space_service'
 import { Effect, pipe, Schema } from 'effect'
 
 export default class SpaceController {
+  private telemetryScope = 'space-controller'
+  // TODO: Add comments
   async create(ctx: FrameworkHttpContext) {
     return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
@@ -59,13 +61,14 @@ export default class SpaceController {
       }).pipe(
         Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('create_space'),
-        telemetry.withScopedTelemetry('space-controller'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
       )
     }).pipe(
       ApplicationRuntimeExecution.runPromise({ ctx }),
     )
   }
 
+  // TODO: Add comments
   async list(ctx: FrameworkHttpContext) {
     return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
@@ -111,7 +114,7 @@ export default class SpaceController {
       }).pipe(
         Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('list_all_spaces'),
-        telemetry.withScopedTelemetry('space-controller'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
       )
     }).pipe(
       ApplicationRuntimeExecution.runPromise({ ctx }),
@@ -163,14 +166,15 @@ export default class SpaceController {
         )
       }).pipe(
         Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
-        telemetry.withTelemetrySpan('fetch_space_by_identifier'),
-        telemetry.withScopedTelemetry('space-controller'),
+        telemetry.withTelemetrySpan('space_details'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
       )
     }).pipe(
       ApplicationRuntimeExecution.runPromise({ ctx }),
     )
   }
 
+  // TODO: Add comments
   async update(ctx: FrameworkHttpContext) {
     return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
@@ -213,13 +217,14 @@ export default class SpaceController {
       }).pipe(
         Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('update_space'),
-        telemetry.withScopedTelemetry('space-controller'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
       )
     }).pipe(
       ApplicationRuntimeExecution.runPromise({ ctx }),
     )
   }
 
+  // TODO: Add comments
   async delete(ctx: FrameworkHttpContext) {
     return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
@@ -253,7 +258,7 @@ export default class SpaceController {
       }).pipe(
         Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
         telemetry.withTelemetrySpan('delete_space'),
-        telemetry.withScopedTelemetry('space-controller'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
       )
     }).pipe(
       ApplicationRuntimeExecution.runPromise({ ctx }),

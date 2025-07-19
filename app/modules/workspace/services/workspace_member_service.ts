@@ -228,6 +228,8 @@ export default class WorkspaceMemberService extends Effect.Service<WorkspaceMemb
       )
     }
 
+    // TODO: Implement other methods like remove, list, check, etc.
+
     return {
       /**
        * Add member(s) to a workspace using the provided payload.

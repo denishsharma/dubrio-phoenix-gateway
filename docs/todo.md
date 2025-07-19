@@ -1,2 +1,8 @@
-- [ ] Create WorkspaceInvitationToken Schema attribute refer AccountVerificationToken
-- [ ] Use WorkspaceInvitationToken wherever possible
+- [🚀] Create WorkspaceInvitationToken Schema attribute refer AccountVerificationToken
+- [🚀] Use WorkspaceInvitationToken wherever possible.
+- [ ] Integrate unit and function testing for all modules.
+- [ ] Remove SpaceAccessDeniedException and use ForbiddenException and for resource not found use ResourceNotFoundException.
+- [ ] Migrate all CRUD operations in SpaceService to new service called SpaceManagerService.
+- [ ] Add space in Workspace invitation payload which will be used to add user to the space directly when user accepts the invitation.
+- [ ] Create new api to add user into particular space and create space member service. [Add, remove, list, check]
+- [ ] Refactor request data payload from normal data payload.
