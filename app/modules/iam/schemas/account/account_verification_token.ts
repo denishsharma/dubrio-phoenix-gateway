@@ -6,8 +6,8 @@ export default class AccountVerificationToken extends SchemaAttribute('modules/i
   schema: Schema.asSchema(
     pipe(
       Schema.Struct({
-        value: Schema.String,
         key: Schema.String,
+        value: Schema.String,
       }),
       Schema.annotations({
         identifier: 'AccountVerificationToken',

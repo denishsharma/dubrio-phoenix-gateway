@@ -90,12 +90,9 @@ export class RetrieveActiveWorkspace extends LucidModelRetrievalStrategy('shared
     return () => withStrategy(
       Effect.gen(function* () {
         const { context } = yield* HttpContext
-        console.log('Retrieving active workspace from context:', context)
         const activeWorkspaceIdentifier = yield* context.pipe(
           Effect.map(ctx => ctx.activeWorkspaceIdentifier),
         )
-
-        console.log('Retrieving active workspace with identifier:', activeWorkspaceIdentifier)
 
         yield* Effect.annotateCurrentSpan('active_workspace_identifier', activeWorkspaceIdentifier)
         return yield* Effect.tryPromise(() => query.select(defaultTo(options?.select, '*') as string).where(activeWorkspaceIdentifier.key, activeWorkspaceIdentifier.value).first())

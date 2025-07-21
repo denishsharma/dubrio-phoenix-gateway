@@ -1,3 +1,4 @@
+import WorkspaceInvitationService from '#modules/workspace/services/workspace_invitation_service'
 import WorkspaceManagerService from '#modules/workspace/services/workspace_manager_service'
 import WorkspaceMemberService from '#modules/workspace/services/workspace_member_service'
 import WorkspaceService from '#modules/workspace/services/workspace_service'
@@ -11,4 +12,5 @@ export const WORKSPACE_MODULE_LAYER = Layer.mergeAll(
   WorkspaceMemberService.Default,
   WorkspaceService.Default,
   WorkspaceManagerService.Default,
+  WorkspaceInvitationService.Default,
 )

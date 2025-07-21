@@ -29,7 +29,7 @@ const INVITATION_MODE_VALIDATION_SCHEMA = vine.group([
   vine.group.if(data => data.mode === 'login', LOGIN_VALIDATION_SCHEMA),
 ])
 
-export default class AcceptWorkspaceInvitePayload extends DataPayload('modules/workspace/accept_workspace_invite')({
+export default class AcceptWorkspaceInvitationRequestPayload extends DataPayload('modules/workspace/workspace_invitation/accept_workspace_invitation_request')({
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({

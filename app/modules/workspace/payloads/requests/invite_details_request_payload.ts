@@ -5,7 +5,7 @@ import WorkspaceInvitationToken from '#modules/workspace/schemas/workspace_membe
 import vine from '@vinejs/vine'
 import { Effect, Schema } from 'effect'
 
-export default class InviteDetailsPayload extends DataPayload('modules/workspace/invite_details')({
+export default class InviteDetailsRequestPayload extends DataPayload('modules/workspace/requests/invite_details_request')({
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({

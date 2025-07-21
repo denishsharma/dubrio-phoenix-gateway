@@ -2,6 +2,7 @@ import { DataPayloadKind } from '#core/data_payload/constants/data_payload_kind'
 import { DataPayload } from '#core/data_payload/factories/data_payload'
 import SchemaFromLucidModelIdentifier from '#core/schema/utils/schema_from_lucid_model_identifier'
 import WorkspaceSessionService from '#modules/workspace/services/workspace_session_service'
+import { SpaceIdentifier } from '#shared/schemas/space/space_attributes'
 import { WorkspaceIdentifier } from '#shared/schemas/workspace/workspace_attributes'
 import vine from '@vinejs/vine'
 import { Effect, Match, Schema } from 'effect'
@@ -10,14 +11,29 @@ export default class SendWorkspaceInviteEmailRequestPayload extends DataPayload(
   kind: DataPayloadKind.REQUEST,
   validator: vine.compile(
     vine.object({
-      invitees: vine.array(vine.string().normalizeEmail()),
+      invitees: vine.array(
+        vine.object({
+          first_name: vine.string().trim().optional().nullable(),
+          last_name: vine.string().trim().optional().nullable(),
+          email_address: vine.string().normalizeEmail(),
+          space_identifier: vine.string().ulid().optional().nullable(),
+        }),
+      ),
+      spaceId: vine.string().ulid(),
       __qs: vine.object({
         workspaceId: vine.string().ulid(),
       }),
     }),
   ),
   schema: Schema.Struct({
-    invitees: Schema.Array(Schema.String),
+    invitees: Schema.ArrayEnsure(
+      Schema.Struct({
+        first_name: Schema.optionalWith(Schema.NonEmptyTrimmedString, { nullable: true }),
+        last_name: Schema.optionalWith(Schema.NonEmptyTrimmedString, { nullable: true }),
+        email_address: Schema.NonEmptyTrimmedString,
+        space_identifier: Schema.optionalWith(SchemaFromLucidModelIdentifier(SpaceIdentifier), { nullable: true }),
+      }),
+    ),
     workspace_identifier: SchemaFromLucidModelIdentifier(WorkspaceIdentifier),
   }),
   mapToSchema: payload => Effect.gen(function* () {
@@ -32,8 +48,16 @@ export default class SendWorkspaceInviteEmailRequestPayload extends DataPayload(
       Match.orElse(() => workspaceSessionService.activeWorkspaceIdentifier),
     )
 
+    // Map invitees (object[]) to the richer structure expected downstream
+    const invitees = payload.invitees.map(invitee => ({
+      first_name: invitee.first_name ?? null,
+      last_name: invitee.last_name ?? null,
+      email_address: invitee.email_address,
+      space_identifier: invitee.space_identifier ? SpaceIdentifier.make(invitee.space_identifier) : null,
+    }))
+
     return {
-      invitees: payload.invitees,
+      invitees,
       workspace_identifier: workspaceIdentifier,
     }
   }),

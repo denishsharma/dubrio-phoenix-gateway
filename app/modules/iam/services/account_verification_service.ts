@@ -62,7 +62,7 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
               user_identifier: payload.user.identifier,
               email_address: payload.user.email_address,
               duration: payload.duration,
-              token: token.value,
+              token: { key: token.value.key, value: token.value.value },
             },
             {
               error: {
@@ -193,7 +193,9 @@ export default class AccountVerificationService extends Effect.Service<AccountVe
          * Retrieve or generate the account verification token details.
          * If the token is cached, retrieve it from the cache.
          * If the token is not cached, generate a new one and cache it.
+         *
          */
+
         const tokenDetails = yield* pipe(
           Effect.tryPromise({
             try: async () => {

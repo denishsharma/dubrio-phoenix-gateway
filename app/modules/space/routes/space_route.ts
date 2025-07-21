@@ -11,4 +11,10 @@ router.group(() => {
   router.get('/', [SpaceController, 'list'])
 
   router.delete('/:id', [SpaceController, 'delete'])
+
+  // Space Member Routes
+  router.post('/:spaceId/members', [SpaceController, 'addMember'])
+  router.delete('/:spaceId/members', [SpaceController, 'removeMember'])
+  router.get('/:spaceId/members', [SpaceController, 'listMembers'])
+  router.get('/:spaceId/members/:userId/check', [SpaceController, 'checkMember'])
 }).prefix('spaces').middleware([middleware.auth()])

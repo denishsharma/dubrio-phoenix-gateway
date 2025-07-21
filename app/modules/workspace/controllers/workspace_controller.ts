@@ -3,38 +3,34 @@ import { DataSource } from '#constants/data_source'
 import DatabaseTransaction from '#core/database/contexts/database_transaction_context'
 import DatabaseService from '#core/database/services/database_service'
 import ApplicationRuntimeExecution from '#core/effect/execution/application_runtime_execution'
-import TypedEffectService from '#core/effect/services/typed_effect_service'
-import ErrorConversionService from '#core/error/services/error_conversion_service'
 import { WithEmptyResponseData } from '#core/http/constants/with_empty_response_data'
-import HttpContext from '#core/http/contexts/http_context'
-import HttpRequestService from '#core/http/services/http_request_service'
 import HttpResponseContextService from '#core/http/services/http_response_context_service'
 import UsingResponseEncoder from '#core/http/utils/using_response_encoder'
 import TelemetryService from '#core/telemetry/services/telemetry_service'
-import VineValidationService from '#core/validation/services/vine_validation_service'
 import AuthenticationService from '#modules/iam/services/authentication_service'
-import AcceptWorkspaceInvitePayload from '#modules/workspace/payloads/accept_workspace_invite_payload'
-import InviteDetailsPayload from '#modules/workspace/payloads/invite_details_payload'
+import AcceptWorkspaceInvitationRequestPayload from '#modules/workspace/payloads/requests/accept_workspace_invitation_request_payload'
 import CreateWorkspaceRequestPayload from '#modules/workspace/payloads/requests/create_workspace_request_payload'
 import DeleteWorkspaceRequestPayload from '#modules/workspace/payloads/requests/delete_workspace_request_payload'
+import InviteDetailsRequestPayload from '#modules/workspace/payloads/requests/invite_details_request_payload'
 import ListWorkspaceRequestPayload from '#modules/workspace/payloads/requests/list_workspace_request_payload'
 import RetrieveWorkspaceDetailsRequestPayload from '#modules/workspace/payloads/requests/retrieve_workspace_details_request_payload'
 import SendWorkspaceInviteEmailRequestPayload from '#modules/workspace/payloads/requests/send_workspace_invite_email_request_payload'
 import SetActiveWorkspaceRequestPayload from '#modules/workspace/payloads/requests/set_active_workspace_request_payload'
 import UpdateWorkspaceDetailsRequestPayload from '#modules/workspace/payloads/requests/update_workspace_details_request_payload'
+import AcceptWorkspaceInvitationPayload from '#modules/workspace/payloads/workspace_invitation/accept_workspace_invitation_payload'
+import QueueWorkspaceInvitationEmailPayload from '#modules/workspace/payloads/workspace_invitation/queue_workspace_invitation_email_payload'
 import CreateWorkspacePayload from '#modules/workspace/payloads/workspace_manager/create_workspace_payload'
 import DeleteWorkspacePayload from '#modules/workspace/payloads/workspace_manager/delete_workspace_payload'
 import ListWorkspacePayload from '#modules/workspace/payloads/workspace_manager/list_workspace_payload'
 import RetrieveWorkspaceDetailsPayload from '#modules/workspace/payloads/workspace_manager/retrieve_workspace_details_payload'
-import SendWorkspaceInviteEmailPayload from '#modules/workspace/payloads/workspace_manager/send_workspace_invite_email_payload'
 import UpdateWorkspaceDetailsPayload from '#modules/workspace/payloads/workspace_manager/update_workspace_details_payload'
 import SetActiveWorkspaceSessionPayload from '#modules/workspace/payloads/workspace_session/set_active_workspace_session_payload'
+import WorkspaceInvitationService from '#modules/workspace/services/workspace_invitation_service'
 import WorkspaceManagerService from '#modules/workspace/services/workspace_manager_service'
-import WorkspaceService from '#modules/workspace/services/workspace_service'
 import WorkspaceSessionService from '#modules/workspace/services/workspace_session_service'
-import StringMixerService from '#shared/common/services/string_mixer_service'
+import { UserIdentifier } from '#shared/schemas/user/user_attributes'
 import { WorkspaceIdentifier } from '#shared/schemas/workspace/workspace_attributes'
-import { Effect, Layer, pipe, Schema } from 'effect'
+import { Effect, pipe, Schema } from 'effect'
 
 export default class WorkspaceController {
   private telemetryScope = 'authentication-controller'
@@ -81,49 +77,6 @@ export default class WorkspaceController {
     }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
   }
 
-  // // TODO: Remove this method after testing.
-  // async createWorkspace(ctx: FrameworkHttpContext) {
-  //   return await Effect.gen(function* () {
-  //     const responseContext = yield* HttpResponseContextService
-  //     const telemetry = yield* TelemetryService
-
-  //     const workspaceService = yield* WorkspaceService
-  //     const authenticationService = yield* AuthenticationService
-
-  //     return yield* Effect.gen(function* () {
-  //       const payload = yield* CreateWorkspacePayload2.fromRequest()
-  //       const user = yield* authenticationService.getAuthenticatedUser
-
-  //       const workspace = yield* workspaceService.createWorkspace(payload, user)
-
-  //       yield* responseContext.annotateMetadata({
-  //         workspaceId: workspace.id,
-  //         workspaceName: workspace.name,
-  //       })
-
-  //       yield* responseContext.setMessage('Workspace created successfully')
-
-  //       return yield* pipe(
-  //         DataSource.known({
-  //           id: workspace.id,
-  //           name: workspace.name,
-  //         }),
-  //         UsingResponseEncoder(
-  //           Schema.Struct({
-  //             id: Schema.ULID,
-  //             name: Schema.String,
-  //           }),
-  //         ),
-  //       )
-  //     }).pipe(
-  //       telemetry.withTelemetrySpan('create_workspace'),
-  //       telemetry.withScopedTelemetry('workspace-controller'),
-  //     )
-  //   }).pipe(
-  //     ApplicationRuntimeExecution.runPromise({ ctx }),
-  //   )
-  // }
-
   async setActiveWorkspace(ctx: FrameworkHttpContext) {
     return await Effect.gen(function* () {
       const database = yield* DatabaseService
@@ -154,42 +107,38 @@ export default class WorkspaceController {
   }
 
   async sendWorkspaceInviteEmail(ctx: FrameworkHttpContext) {
-    return await Effect.gen(function* () {
+    return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
       const responseContext = yield* HttpResponseContextService
       const telemetry = yield* TelemetryService
 
-      const workspaceService = yield* WorkspaceService
+      const authenticationService = yield* AuthenticationService
+      const workspaceInvitationService = yield* WorkspaceInvitationService
 
       return yield* Effect.gen(function* () {
         const payload = yield* SendWorkspaceInviteEmailRequestPayload.fromRequest()
+        const user = yield* authenticationService.getAuthenticatedUser
 
-        const workspace = yield* pipe(
+        const result = yield* pipe(
           DataSource.known({
             workspace_identifier: payload.workspace_identifier,
+            invited_by_user_identifier: UserIdentifier.make(user.uid),
             invitees: payload.invitees,
           }),
-          SendWorkspaceInviteEmailPayload.fromSource(),
-          Effect.flatMap(workspaceService.sendWorkspaceInviteEmail),
+          QueueWorkspaceInvitationEmailPayload.fromSource(),
+          Effect.flatMap(workspaceInvitationService.queueInvitationEmail),
         )
-
-        yield* responseContext.annotateMetadata({
-          invitees_count: payload.invitees.length,
-          success: workspace.success,
-        })
 
         yield* responseContext.setMessage(`Successfully sent workspace invites to ${payload.invitees.length} recipients.`)
 
         return yield* pipe(
           DataSource.known({
             message: `Successfully sent workspace invites to ${payload.invitees.length} recipients.`,
-            invitees: payload.invitees,
-            success: workspace.success,
+            success: result.success,
           }),
           UsingResponseEncoder(
             Schema.Struct({
               message: Schema.String,
-              invitees: Schema.Array(Schema.String),
               success: Schema.Boolean,
             }),
           ),
@@ -205,74 +154,78 @@ export default class WorkspaceController {
   }
 
   async acceptInvite(ctx: FrameworkHttpContext) {
-    const program = Effect.gen(function* () {
-      const workspaceService = yield* WorkspaceService
+    return await Effect.gen(this, function* () {
+      const database = yield* DatabaseService
+      const telemetry = yield* TelemetryService
+      const workspaceInvitationService = yield* WorkspaceInvitationService
 
-      const payload = yield* AcceptWorkspaceInvitePayload.fromRequest()
+      return yield* Effect.gen(function* () {
+        const payload = yield* AcceptWorkspaceInvitationRequestPayload.fromRequest()
 
-      const result = yield* workspaceService.acceptInvite(payload)
+        const basePayload = {
+          token: payload.token,
+          mode: payload.mode,
+        }
 
-      if (result.mode === 'login' && result.userInstance) {
-        yield* Effect.tryPromise({
-          try: () => ctx.auth.use('web').login(result.userInstance),
-          catch: err => err,
-        })
-      }
+        let dataSourcePayload: any = basePayload
 
-      return ctx.response.status(200).json(result)
-    })
+        if (payload.mode === 'register') {
+          dataSourcePayload = {
+            ...basePayload,
+            first_name: payload.first_name,
+            last_name: payload.last_name,
+            password: payload.password,
+          }
+        } else if (payload.mode === 'login') {
+          dataSourcePayload = {
+            ...basePayload,
+            password: payload.password,
+          }
+        }
 
-    return await Effect.runPromise(
-      pipe(
-        program,
-        Effect.provide(
-          Layer.mergeAll(
-            HttpContext.provide(ctx),
-            HttpRequestService.Default,
-            VineValidationService.Default,
-            TypedEffectService.Default,
-            WorkspaceService.Default,
-            ErrorConversionService.Default,
-            StringMixerService.Default,
-          ),
-        ),
-        // Effect.catchAll(error =>
-        //   Effect.sync(() =>
-        //     ctx.response.internalServerError({
-        //       success: false,
-        //       message: error?.message ?? 'Unexpected error occurred',
-        //     }),
-        //   ),
-        // ),
-      ),
+        const result = yield* pipe(
+          DataSource.known(dataSourcePayload),
+          AcceptWorkspaceInvitationPayload.fromSource(),
+          Effect.flatMap(workspaceInvitationService.acceptInvitation),
+        )
+
+        if (result.mode === 'login' && result.userInstance) {
+          yield* Effect.tryPromise({
+            try: () => ctx.auth.use('web').login(result.userInstance),
+            catch: err => err,
+          })
+        }
+
+        return result
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('accept_workspace_invite'),
+        telemetry.withScopedTelemetry('workspace-controller'),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
     )
   }
 
   async getInviteDetails(ctx: FrameworkHttpContext) {
-    const program = Effect.gen(function* () {
-      const workspaceService = yield* WorkspaceService
+    return await Effect.gen(function* () {
+      const database = yield* DatabaseService
+      const telemetry = yield* TelemetryService
+      const workspaceInvitationService = yield* WorkspaceInvitationService
 
-      const payload = yield* InviteDetailsPayload.fromRequest()
+      return yield* Effect.gen(function* () {
+        const payload = yield* InviteDetailsRequestPayload.fromRequest()
 
-      const result = yield* workspaceService.getInviteDetails(payload)
+        const result = yield* workspaceInvitationService.retrieveInvitationDetails(payload.token)
 
-      return ctx.response.status(200).json(result)
-    })
-
-    return Effect.runPromise(
-      pipe(
-        program,
-        Effect.provide(
-          Layer.mergeAll(
-            WorkspaceService.Default,
-            HttpContext.provide(ctx),
-            VineValidationService.Default,
-            TypedEffectService.Default,
-            HttpContext.provide(ctx),
-            HttpRequestService.Default,
-          ),
-        ),
-      ),
+        return result
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('get_invite_details'),
+        telemetry.withScopedTelemetry('workspace-controller'),
+      )
+    }).pipe(
+      ApplicationRuntimeExecution.runPromise({ ctx }),
     )
   }
 

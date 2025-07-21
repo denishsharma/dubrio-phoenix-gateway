@@ -30,47 +30,19 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
     const lucidModelRetrieval = yield* LucidModelRetrievalService
     const telemetry = yield* TelemetryService
 
-    const authenticationService = yield* AuthenticationService
-
     function createSpace(payload: ProcessedDataPayload<CreateSpacePayload>) {
       return Effect.gen(function* () {
-        const { trx } = yield* database.requireTransaction()
-
-        /**
-         * Retrieve the authenticated user.
-         */
-        const user = yield* authenticationService.getAuthenticatedUser
-
-        /**
-         * Retrieve the workspace using the provided identifier from the payload.
-         */
-        const workspace = yield* pipe(
-          WithRetrievalStrategy(
-            RetrieveWorkspaceUsingIdentifier,
-            retrieve => retrieve(payload.workspace_identifier),
-            {
-              exception: {
-                throw: true,
-              },
-              query: {
-                client: trx,
-              },
-            },
-          ),
-          lucidModelRetrieval.retrieve,
-        )
-
         /**
          * Create a space for the workspace.
          */
         const space = yield* Effect.tryPromise({
           try: async () => {
-            return await workspace
+            return await payload.workspace
               .related('spaces')
               .create({
                 name: payload.space.name,
                 tag: payload.space.tag,
-                createdBy: user.id,
+                createdBy: payload.user.id,
                 icon: payload.space.icon,
               } satisfies Partial<SpaceModelFields>)
           },
@@ -83,7 +55,7 @@ export default class SpaceService extends Effect.Service<SpaceService>()('@servi
          * is also a member of the space.
          */
         yield* Effect.tryPromise({
-          try: () => user.related('spaces').attach([space.id]),
+          try: () => payload.user.related('spaces').attach([space.id]),
           catch: errorConversion.toUnknownError('Unexpected error occurred while attaching the user to the space.'),
         }).pipe(telemetry.withTelemetrySpan('attach_user_to_space'))
 

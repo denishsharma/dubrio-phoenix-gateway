@@ -221,13 +221,14 @@ export function SchemaAttribute<T extends string>(tag: T) {
       }
 
       static is<V extends BaseSchemaAttribute>(this: new (encoded: Option.Option<I>, decoded: Option.Option<A>) => V, value: unknown): value is V {
-        return is.object(value)
+        const result = is.object(value)
           && has(value, KIND_MARKER)
           && value[KIND_MARKER] === factoryOptions.marker
           && has(value, SCHEMA_ATTRIBUTE_MARKER)
           && value[SCHEMA_ATTRIBUTE_MARKER] === SCHEMA_ATTRIBUTE_MARKER
-          && has(value, TAG_MARKER)
-          && value[TAG_MARKER] === resolvedTag
+          && has(value, '_tag')
+          && value._tag === resolvedTag
+        return result
       }
     }
     ;(BaseSchemaAttribute.prototype as any).name = resolvedTag

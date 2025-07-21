@@ -13,6 +13,6 @@ export default class AuthenticateUsingCredentialsRequestPayload extends DataPayl
   ),
   schema: Schema.Struct({
     email_address: Schema.NonEmptyTrimmedString,
-    password: Schema.Redacted(Schema.NonEmptyTrimmedString),
+    password: Schema.NonEmptyTrimmedString,
   }),
 }) {}

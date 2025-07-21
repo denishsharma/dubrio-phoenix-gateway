@@ -12,7 +12,6 @@ import { WorkspaceIdentifier } from '#shared/schemas/workspace/workspace_attribu
 import is from '@adonisjs/core/helpers/is'
 import { Array, Effect, Either, Option, pipe, Ref } from 'effect'
 import { omit } from 'lodash-es'
-import { DateTime } from 'luxon'
 
 export default class WorkspaceMemberService extends Effect.Service<WorkspaceMemberService>()('@service/modules/workspace/workspace_member', {
   dependencies: [
@@ -194,7 +193,7 @@ export default class WorkspaceMemberService extends Effect.Service<WorkspaceMemb
                       {
                         role: member.role,
                         status: member.status,
-                        joined_at: DateTime.fromJSDate(member.joined_at),
+                        joined_at: member.joined_at,
                       },
                     ],
                   ),
