@@ -31,7 +31,15 @@ import cache from '@adonisjs/cache/services/main'
 import { Effect, pipe, Redacted, Schema } from 'effect'
 
 export default class WorkspaceInvitationService extends Effect.Service<WorkspaceInvitationService>()('@service/modules/workspace/workspace_invitation', {
-  dependencies: [TelemetryService.Default],
+  dependencies: [
+    TelemetryService.Default,
+    DatabaseService.Default,
+    ErrorConversionService.Default,
+    LucidModelRetrievalService.Default,
+    QueueJobService.Default,
+    StringMixerService.Default,
+    AuthenticationService.Default,
+  ],
   effect: Effect.gen(function* () {
     const database = yield* DatabaseService
     const errorConversion = yield* ErrorConversionService
