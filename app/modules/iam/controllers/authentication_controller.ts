@@ -326,7 +326,8 @@ export default class AuthenticationController {
         telemetry.withTelemetrySpan('register_user'),
         telemetry.withScopedTelemetry(this.telemetryScope),
       )
-    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
+    })
+      .pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
   }
 
   /**

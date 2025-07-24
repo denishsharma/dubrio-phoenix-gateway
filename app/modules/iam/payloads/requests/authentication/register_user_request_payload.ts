@@ -17,8 +17,8 @@ export default class RegisterUserRequestPayload extends DataPayload('modules/iam
   ),
   schema: Schema.Struct({
     email_address: Schema.NonEmptyTrimmedString,
-    password: Schema.Redacted(Schema.NonEmptyTrimmedString),
+    password: Schema.NonEmptyTrimmedString,
     first_name: Schema.NonEmptyTrimmedString,
-    last_name: Schema.NonEmptyTrimmedString,
+    last_name: Schema.optional(Schema.NonEmptyTrimmedString),
   }),
 }) {}

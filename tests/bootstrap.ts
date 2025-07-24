@@ -1,4 +1,5 @@
 import type { Config } from '@japa/runner/types'
+import env from '#start/env'
 import app from '@adonisjs/core/services/app'
 import testUtils from '@adonisjs/core/services/test_utils'
 import { apiClient } from '@japa/api-client'
@@ -15,7 +16,9 @@ import { pluginAdonisJS } from '@japa/plugin-adonisjs'
  */
 export const plugins: Config['plugins'] = [
   assert(),
-  apiClient(),
+  apiClient({
+    baseURL: `${env.get('APP_URL')}`,
+  }),
   pluginAdonisJS(app),
 ]
 
