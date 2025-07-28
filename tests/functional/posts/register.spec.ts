@@ -1,11 +1,12 @@
+import { OnboardingStatus } from '#modules/iam/constants/onboarding_status'
 import { test } from '@japa/runner'
 
-interface RegisterResponse {
-  id: string;
-  email_address: string;
-  first_name: string;
-  last_name: string | null;
-}
+// interface RegisterResponse {
+//   id: string;
+//   email_address: string;
+//   first_name: string;
+//   last_name: string | null;
+// }
 
 interface ValidationIssue {
   code: string;
@@ -18,7 +19,7 @@ interface ValidationIssue {
 }
 
 test.group('Posts register', () => {
-  test('should register user with valid data', async ({ assert, client }) => {
+  test('should register user with valid data', async ({ client }) => {
     const response = await client
       .post('/auth/register')
       .json({
@@ -31,12 +32,15 @@ test.group('Posts register', () => {
 
     // Better type assertion with validation
     response.assertStatus(200)
-    const body = response.body().data as RegisterResponse
-
-    assert.exists(body.id)
-    assert.equal(body.email_address, 'jane@example.com')
-    assert.equal(body.first_name, 'Jane')
-    assert.equal(body.last_name, 'Smith')
+    response.assertBodyContains({
+      data: {
+        first_name: 'Jane',
+        last_name: 'Smith',
+        email_address: 'jane@example.com',
+        is_account_verified: false,
+        onboarding_status: OnboardingStatus.NOT_STARTED,
+      },
+    })
   })
 
   test('should fail when email is missing', async ({ assert, client }) => {
@@ -113,7 +117,7 @@ test.group('Posts register', () => {
       })
 
     response.assertStatus(200)
-    const body = response.body().data as RegisterResponse
+    const body = response.body().data
     assert.exists(body.id)
     assert.equal(body.last_name, null)
   })

@@ -17,7 +17,7 @@ import { pluginAdonisJS } from '@japa/plugin-adonisjs'
 export const plugins: Config['plugins'] = [
   assert(),
   apiClient({
-    baseURL: `${env.get('APP_URL')}`,
+    baseURL: `http://${env.get('HOST')}:${env.get('PORT')}`,
   }),
   pluginAdonisJS(app),
 ]
@@ -30,7 +30,7 @@ export const plugins: Config['plugins'] = [
  * The teardown functions are executed after all the tests
  */
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
-  setup: [],
+  setup: [() => testUtils.db().truncate()],
   teardown: [],
 }
 
