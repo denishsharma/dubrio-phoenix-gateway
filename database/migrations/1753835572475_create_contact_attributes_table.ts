@@ -14,6 +14,8 @@ export default class extends BaseSchema {
         'number',
         'date',
         'boolean',
+        'single_choice',
+        'multiple_choice',
       ]).notNullable()
 
       table.unique(['workspace_id', 'name'])
