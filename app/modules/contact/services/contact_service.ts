@@ -1,5 +1,5 @@
 import type { ProcessedDataPayload } from '#core/data_payload/factories/data_payload'
-import type CreateContactPayload from '#modules/contact/payloads/contact/create_contact_payload'
+import type CreateContactPayload from '#modules/contact/payloads/contact_manager/create_contact_payload'
 import type DeleteContactPayload from '#modules/contact/payloads/contact_manager/delete_contact_payload'
 import type ListContactPayload from '#modules/contact/payloads/contact_manager/list_contact_payload'
 import type RetrieveContactDetailsPayload from '#modules/contact/payloads/contact_manager/retrieve_contact_details_payload'
