@@ -21,6 +21,7 @@ import { CORE_QUEUE_JOB_MODULE_LAYER } from '#core/queue_job/queue_job_module'
 import { CORE_SCHEMA_MODULE_LAYER } from '#core/schema/schema_module'
 import { CORE_TELEMETRY_MODULE_LAYER } from '#core/telemetry/telemetry_module'
 import { CORE_VALIDATION_MODULE_LAYER } from '#core/validation/validation_module'
+import { CONTACT_MODULE_LAYER } from '#modules/contact/contact_module'
 import { IDENTITY_ACCESS_MANAGEMENT_MODULE_LAYER } from '#modules/iam/iam_module'
 import { SPACE_MODULE_LAYER } from '#modules/space/space_module'
 import { WORKSPACE_MODULE_LAYER } from '#modules/workspace/workspace_module'
@@ -52,6 +53,7 @@ export const APPLICATION_RUNTIME_DEPENDENCIES_LAYER = Layer.mergeAll(
   IDENTITY_ACCESS_MANAGEMENT_MODULE_LAYER,
   WORKSPACE_MODULE_LAYER,
   SPACE_MODULE_LAYER,
+  CONTACT_MODULE_LAYER,
 )
 
 /**
