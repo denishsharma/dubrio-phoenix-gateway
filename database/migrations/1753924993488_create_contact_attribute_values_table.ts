@@ -6,9 +6,9 @@ export default class extends BaseSchema {
   async up() {
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id')
-      table.integer('contact_id').unsigned().notNullable()
-      table.integer('attribute_id').unsigned().notNullable()
-      table.integer('option_id').unsigned().nullable()
+      table.integer('contact_id').unsigned().references('id').inTable('contacts')
+      table.integer('attribute_id').unsigned().notNullable().references('id').inTable('contact_attributes')
+      table.integer('option_id').unsigned().nullable().references('id').inTable('contact_attribute_options')
 
       table.string('value_text', 500).nullable()
       table.decimal('value_number', 10, 2).nullable()

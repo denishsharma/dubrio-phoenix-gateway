@@ -75,7 +75,7 @@ export default class ContactController {
     }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
   }
 
-  async list(ctx: FrameworkHttpContext) {
+  async listBasic(ctx: FrameworkHttpContext) {
     return await Effect.gen(this, function* () {
       const database = yield* DatabaseService
       const lucidModelRetrieval = yield* LucidModelRetrievalService
@@ -104,9 +104,11 @@ export default class ContactController {
           lucidModelRetrieval.retrieve,
         )
 
-        const contacts = yield* pipe(
+        const result = yield* pipe(
           DataSource.known({
             workspace,
+            cursor: payload.cursor,
+            limit: payload.limit,
           }),
           ListContactPayload.fromSource(),
           Effect.flatMap(contactService.list),
@@ -115,17 +117,27 @@ export default class ContactController {
         yield* responseContext.setMessage('Successfully retrieved all contacts')
 
         return yield* pipe(
-          DataSource.known(contacts),
+          DataSource.known({
+            data: result.data,
+            pagination: result.pagination,
+          }),
           UsingResponseEncoder(
-            Schema.Array(
-              Schema.Struct({
-                id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
-                first_name: pipe(Schema.NullOr(Schema.String), Schema.propertySignature, Schema.fromKey('firstName')),
-                last_name: pipe(Schema.NullOr(Schema.String), Schema.propertySignature, Schema.fromKey('lastName')),
-                email: pipe(Schema.NullOr(Schema.String), Schema.propertySignature, Schema.fromKey('email')),
-                phone_number: pipe(Schema.NullOr(Schema.String), Schema.propertySignature, Schema.fromKey('phoneNumber')),
+            Schema.Struct({
+              data: Schema.Array(
+                Schema.Struct({
+                  id: pipe(Schema.ULID, Schema.propertySignature, Schema.fromKey('uid')),
+                  first_name: pipe(Schema.NullOr(Schema.String), Schema.propertySignature, Schema.fromKey('firstName')),
+                  last_name: pipe(Schema.NullOr(Schema.String), Schema.propertySignature, Schema.fromKey('lastName')),
+                  email: pipe(Schema.NullOr(Schema.String), Schema.propertySignature, Schema.fromKey('email')),
+                  phone_number: pipe(Schema.NullOr(Schema.String), Schema.propertySignature, Schema.fromKey('phoneNumber')),
+                }),
+              ),
+              pagination: Schema.Struct({
+                hasNextPage: Schema.Boolean,
+                nextCursor: Schema.NullOr(Schema.Number),
+                limit: Schema.Number,
               }),
-            ),
+            }),
           ),
         )
       }).pipe(

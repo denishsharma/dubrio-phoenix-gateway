@@ -12,11 +12,15 @@ export default class ListContactRequestPayload extends DataPayload('modules/cont
     vine.object({
       __qs: vine.object({
         workspace_id: vine.string().trim().ulid().optional(),
+        cursor: vine.number().optional(),
+        limit: vine.number().min(1).max(100).optional(),
       }),
     }),
   ),
   schema: Schema.Struct({
     workspace_identifier: SchemaFromLucidModelIdentifier(WorkspaceIdentifier),
+    cursor: Schema.NullOr(Schema.Number),
+    limit: Schema.optionalWith(Schema.Number, { default: () => 10 }),
   }),
   mapToSchema: payload => Effect.gen(function* () {
     const workspaceSessionService = yield* WorkspaceSessionService
@@ -34,6 +38,8 @@ export default class ListContactRequestPayload extends DataPayload('modules/cont
 
     return {
       workspace_identifier: workspaceIdentifier,
+      cursor: payload.__qs.cursor ? Number(payload.__qs.cursor) : null,
+      limit: Number(payload.__qs.limit) || 10,
     }
   }),
 }) {}

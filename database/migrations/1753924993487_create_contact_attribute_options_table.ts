@@ -14,7 +14,7 @@ export default class extends BaseSchema {
 
       table.timestamp('created_at')
       table.timestamp('updated_at')
-      table.unique(['contact_attribute_id', 'option_value'], 'contact_attr_options_unique')
+      table.unique(['contact_attribute_id', 'option_value'], 'contact_attr_opt_unique')
     })
   }
 

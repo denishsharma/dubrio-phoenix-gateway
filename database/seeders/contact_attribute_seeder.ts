@@ -4,12 +4,50 @@ import { BaseSeeder } from '@adonisjs/lucid/seeders'
 
 export default class extends BaseSeeder {
   async run() {
-    // Create predefined contact attributes with their options
-    const attributes = [
+    // Create default contact attributes that map to existing contact fields
+    const defaultAttributes = [
+      {
+        name: 'First Name',
+        dataType: 'string' as const,
+        workspaceId: 1,
+        isDefault: true,
+        defaultFieldMapping: 'first_name',
+        options: [],
+      },
+      {
+        name: 'Last Name',
+        dataType: 'string' as const,
+        workspaceId: 1,
+        isDefault: true,
+        defaultFieldMapping: 'last_name',
+        options: [],
+      },
+      {
+        name: 'Email',
+        dataType: 'string' as const,
+        workspaceId: 1,
+        isDefault: true,
+        defaultFieldMapping: 'email',
+        options: [],
+      },
+      {
+        name: 'Phone Number',
+        dataType: 'string' as const,
+        workspaceId: 1,
+        isDefault: true,
+        defaultFieldMapping: 'phone_number',
+        options: [],
+      },
+    ]
+
+    // Create predefined custom contact attributes
+    const customAttributes = [
       {
         name: 'Contact Type',
         dataType: 'single_choice' as const,
         workspaceId: 1,
+        isDefault: false,
+        defaultFieldMapping: null,
         options: [
           { value: 'lead', label: 'Lead', sortOrder: 0 },
           { value: 'prospect', label: 'Prospect', sortOrder: 1 },
@@ -21,6 +59,8 @@ export default class extends BaseSeeder {
         name: 'Communication Preference',
         dataType: 'multiple_choice' as const,
         workspaceId: 1,
+        isDefault: false,
+        defaultFieldMapping: null,
         options: [
           { value: 'email', label: 'Email', sortOrder: 0 },
           { value: 'phone', label: 'Phone', sortOrder: 1 },
@@ -33,6 +73,8 @@ export default class extends BaseSeeder {
         name: 'Industry',
         dataType: 'single_choice' as const,
         workspaceId: 1,
+        isDefault: false,
+        defaultFieldMapping: null,
         options: [
           { value: 'technology', label: 'Technology', sortOrder: 0 },
           { value: 'finance', label: 'Finance', sortOrder: 1 },
@@ -48,6 +90,8 @@ export default class extends BaseSeeder {
         name: 'Company Size',
         dataType: 'single_choice' as const,
         workspaceId: 1,
+        isDefault: false,
+        defaultFieldMapping: null,
         options: [
           { value: 'startup', label: 'Startup (1-10)', sortOrder: 0 },
           { value: 'small', label: 'Small (11-50)', sortOrder: 1 },
@@ -60,34 +104,47 @@ export default class extends BaseSeeder {
         name: 'Lead Score',
         dataType: 'number' as const,
         workspaceId: 1,
+        isDefault: false,
+        defaultFieldMapping: null,
         options: [],
       },
       {
         name: 'Is Decision Maker',
         dataType: 'boolean' as const,
         workspaceId: 1,
+        isDefault: false,
+        defaultFieldMapping: null,
         options: [],
       },
       {
         name: 'Notes',
         dataType: 'string' as const,
         workspaceId: 1,
+        isDefault: false,
+        defaultFieldMapping: null,
         options: [],
       },
       {
         name: 'Last Contact Date',
         dataType: 'date' as const,
         workspaceId: 1,
+        isDefault: false,
+        defaultFieldMapping: null,
         options: [],
       },
     ]
 
-    for (const attributeData of attributes) {
+    // Combine both default and custom attributes
+    const allAttributes = [...defaultAttributes, ...customAttributes]
+
+    for (const attributeData of allAttributes) {
       // Create the attribute
       const attribute = await ContactAttribute.create({
         name: attributeData.name,
         dataType: attributeData.dataType,
         workspaceId: attributeData.workspaceId,
+        isDefault: attributeData.isDefault,
+        defaultFieldMapping: attributeData.defaultFieldMapping,
       })
 
       // Create options for choice-based attributes

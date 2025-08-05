@@ -45,18 +45,40 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
       return Effect.gen(function* () {
         const { trx } = yield* database.requireTransaction()
 
+        const query = Contact.query({ client: trx })
+          .where('workspaceId', payload.workspace.id)
+          .whereNull('deletedAt')
+
+        if (payload.cursor) {
+          query.where('id', '>', payload.cursor)
+        }
+
+        query.orderBy('id', 'asc')
+          .limit(payload.limit + 1)
+
         /**
-         * Retrieve all contacts for the workspace.
+         * Retrieve contacts for the workspace with pagination.
          */
-        const contacts = yield* Effect.tryPromise({
-          try: () => Contact.query({ client: trx })
-            .where('workspaceId', payload.workspace.id)
-            .whereNull('deletedAt')
-            .orderBy('createdAt', 'desc'),
+        const allContacts = yield* Effect.tryPromise({
+          try: () => query,
           catch: errorConversion.toUnknownError('Unexpected error while retrieving contacts'),
         })
 
-        return contacts
+        // Check if there are more records
+        const hasNextPage = allContacts.length > payload.limit
+        const contacts = hasNextPage ? allContacts.slice(0, payload.limit) : allContacts
+
+        // Get next cursor from the last contact's id
+        const nextCursor = hasNextPage && contacts.length > 0 ? contacts[contacts.length - 1].id : null
+
+        return {
+          data: contacts,
+          pagination: {
+            hasNextPage,
+            nextCursor,
+            limit: payload.limit,
+          },
+        }
       }).pipe(telemetry.withTelemetrySpan('list_contacts'))
     }
 

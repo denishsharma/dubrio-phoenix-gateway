@@ -19,6 +19,12 @@ export default class ContactAttribute extends BaseModel {
   @column()
   declare dataType: ContactAttributeDataType
 
+  @column()
+  declare isDefault: boolean
+
+  @column()
+  declare defaultFieldMapping: string | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
@@ -53,6 +59,8 @@ export type ContactAttributeModelFields = CamelCasedProperties<{
   workspaceId: ContactAttribute['workspaceId'];
   name: ContactAttribute['name'];
   dataType: ContactAttribute['dataType'];
+  isDefault: ContactAttribute['isDefault'];
+  defaultFieldMapping: ContactAttribute['defaultFieldMapping'];
   createdAt: ContactAttribute['createdAt'];
   updatedAt: ContactAttribute['updatedAt'];
 }>
