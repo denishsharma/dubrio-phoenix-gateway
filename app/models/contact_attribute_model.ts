@@ -25,6 +25,12 @@ export default class ContactAttribute extends BaseModel {
   declare isDefault: boolean
 
   @column()
+  declare isRequired: boolean
+
+  @column()
+  declare isUnique: boolean
+
+  @column()
   declare defaultFieldMapping: string | null
 
   @column.dateTime({ autoCreate: true })

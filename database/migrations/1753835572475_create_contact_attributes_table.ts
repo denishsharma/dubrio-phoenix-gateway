@@ -13,6 +13,8 @@ export default class extends BaseSchema {
       table.string('data_type').notNullable()
 
       table.boolean('is_default').defaultTo(false)
+      table.boolean('is_required').defaultTo(false)
+      table.boolean('is_unique').defaultTo(false)
       table.string('default_field_mapping').nullable()
 
       table.unique(['workspace_id', 'slug'])
