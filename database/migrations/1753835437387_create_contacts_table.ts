@@ -14,9 +14,6 @@ export default class extends BaseSchema {
       table.string('email', 254).nullable()
       table.string('phone_number').nullable()
 
-      table.unique(['workspace_id', 'email'])
-      table.unique(['workspace_id', 'phone_number'])
-
       table.index(['workspace_id'])
       table.index(['workspace_id', 'first_name'])
       table.index(['workspace_id', 'email'])

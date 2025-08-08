@@ -1,5 +1,6 @@
 import ContactAttribute from '#models/contact_attribute_model'
 import ContactAttributeOption from '#models/contact_attribute_option_model'
+import stringHelpers from '@adonisjs/core/helpers/string'
 import { BaseSeeder } from '@adonisjs/lucid/seeders'
 
 export default class extends BaseSeeder {
@@ -141,6 +142,7 @@ export default class extends BaseSeeder {
       // Create the attribute
       const attribute = await ContactAttribute.create({
         name: attributeData.name,
+        slug: stringHelpers.slug(attributeData.name, { lower: true, strict: true }),
         dataType: attributeData.dataType,
         workspaceId: attributeData.workspaceId,
         isDefault: attributeData.isDefault,

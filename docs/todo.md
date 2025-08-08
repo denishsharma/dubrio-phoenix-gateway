@@ -7,3 +7,10 @@
 - [x] Create new api to add user into particular space and create space member service. [Add, remove, list, check]
 - [ ] Refactor request data payload from normal data payload.
 - [] Fix queueInvitationEmail function for sending invitation email --> use SendAccountVerificationEmailJob
+- [] add slug inside contact attribute
+- [] Change data_type column to string from enum and create a separate enum in application using better enums.
+- [] Add is_required and is_unique columns in contact attribute table.
+- [] Create list API that will return contact with attribute, pagination, filter, and sorting options.
+- [] CURD /contacts/attributes API --> options table.
+- [] Modify create and update contact API to accept contact attributes.
+- [] Cache workspace contact attributes in redis in LRU cache.

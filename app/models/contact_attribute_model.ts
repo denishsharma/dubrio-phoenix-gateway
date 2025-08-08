@@ -1,10 +1,9 @@
+import type { ContactAttributeDataType } from '#constants/contact_attribute_data_type'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
 import type { CamelCasedProperties, SnakeCasedProperties } from 'type-fest'
 import Workspace from '#models/workspace_model'
 import { BaseModel, belongsTo, column } from '@adonisjs/lucid/orm'
-
-export type ContactAttributeDataType = 'string' | 'number' | 'date' | 'boolean' | 'single_choice' | 'multiple_choice'
 
 export default class ContactAttribute extends BaseModel {
   @column({ isPrimary: true, serializeAs: null })
@@ -15,6 +14,9 @@ export default class ContactAttribute extends BaseModel {
 
   @column()
   declare name: string
+
+  @column()
+  declare slug: string
 
   @column()
   declare dataType: ContactAttributeDataType
