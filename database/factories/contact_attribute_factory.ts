@@ -1,4 +1,4 @@
-import type { ContactAttributeDataType } from '#models/contact_attribute_model'
+import type { ContactAttributeDataType } from '#constants/contact_attribute_data_type'
 import ContactAttribute from '#models/contact_attribute_model'
 import factory from '@adonisjs/lucid/factories'
 

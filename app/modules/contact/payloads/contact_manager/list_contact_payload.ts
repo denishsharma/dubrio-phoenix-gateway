@@ -8,7 +8,24 @@ export default class ListContactPayload extends DataPayload('modules/contact/pay
   kind: DataPayloadKind.DATA,
   schema: Schema.Struct({
     workspace: SchemaFromLucidModel(Workspace),
-    cursor: Schema.NullOr(Schema.Number),
-    limit: Schema.Number,
+    filters: Schema.optional(Schema.Array(Schema.Struct({
+      attribute: Schema.NonEmptyTrimmedString,
+      operator: Schema.String,
+      value: Schema.Any,
+    }))),
+    include_attributes: Schema.optional(Schema.Array(Schema.NonEmptyTrimmedString)),
+    exclude_attributes: Schema.optional(Schema.Array(Schema.NonEmptyTrimmedString)),
+    pagination: Schema.Struct({
+      mode: Schema.Literal('number', 'next_id'),
+      page: Schema.optionalWith(Schema.Number, { nullable: true }),
+      per_page: Schema.optionalWith(Schema.Number, { nullable: true }),
+      limit: Schema.optionalWith(Schema.Number, { nullable: true }),
+      next_id: Schema.optionalWith(Schema.String, { nullable: true }),
+    }),
+    sort: Schema.optional(Schema.Array(Schema.Struct({
+      attribute: Schema.NonEmptyTrimmedString,
+      order: Schema.Literal('asc', 'desc'),
+    }))),
+
   }),
 }) {}

@@ -34,6 +34,9 @@ export default class ContactAttributeOption extends BaseModel {
     foreignKey: 'contactAttributeId',
   })
   declare contactAttribute: BelongsTo<typeof ContactAttribute>
+
+  @belongsTo(() => ContactAttribute, { foreignKey: 'contactAttributeId' })
+  public attribute!: BelongsTo<typeof ContactAttribute>
 }
 
 /**

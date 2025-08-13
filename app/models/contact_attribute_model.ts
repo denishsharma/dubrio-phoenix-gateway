@@ -1,9 +1,10 @@
 import type { ContactAttributeDataType } from '#constants/contact_attribute_data_type'
-import type { BelongsTo } from '@adonisjs/lucid/types/relations'
+import type { BelongsTo, HasMany } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
 import type { CamelCasedProperties, SnakeCasedProperties } from 'type-fest'
+import ContactAttributeOption from '#models/contact_attribute_option_model'
 import Workspace from '#models/workspace_model'
-import { BaseModel, belongsTo, column } from '@adonisjs/lucid/orm'
+import { BaseModel, belongsTo, column, hasMany } from '@adonisjs/lucid/orm'
 
 export default class ContactAttribute extends BaseModel {
   @column({ isPrimary: true, serializeAs: null })
@@ -45,6 +46,12 @@ export default class ContactAttribute extends BaseModel {
 
   @belongsTo(() => Workspace)
   declare workspace: BelongsTo<typeof Workspace>
+
+  @hasMany(() => ContactAttributeOption, {
+    foreignKey: 'contactAttributeId',
+    localKey: 'id',
+  })
+  public options!: HasMany<typeof ContactAttributeOption>
 
   // ---------------------------
   // Computed Properties

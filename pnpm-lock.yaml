@@ -1950,7 +1950,7 @@ packages:
     resolution: {integrity: sha512-5IOn+jcCEHEraYolBPs/sT4BxYCe2nHg374OPiItB1O96KZFseS2gthU4twyYzeDcFew4DaUM/xwc5BQf08JJw==}
     engines: {node: '>=18.20 <19 || >=20.10'}
 
-  cli-cursor@5.0.0:
+  cli-next_id@5.0.0:
     resolution: {integrity: sha512-aCj4O5wKyszjMmDT4tZj93kxyydN/K5zPWSCe6/0AV/AA1pqe5ZBIw0a2ZfPQV7lL5/yb5HsUreJ6UFAF1tEQw==}
     engines: {node: '>=18'}
 
@@ -4316,7 +4316,7 @@ packages:
     resolution: {integrity: sha512-40yHxbNcl2+rzXvZuVkrYohathsSJlMTXKryG5y8uciHv1+xDLHQpgjG64JUO9nrEq2jGLH6IZ8BcZyw3wrweg==}
     engines: {node: '>=14.16'}
 
-  restore-cursor@5.1.0:
+  restore-next_id@5.1.0:
     resolution: {integrity: sha512-oMA2dcrw6u0YfxJQXm342bFKX/E4sG9rbTzO9ptUcR/e8A33cHuvStiYOwH7fszkZlZ1z/ta9AAoPk2F4qIOHA==}
     engines: {node: '>=18'}
 
@@ -6837,9 +6837,9 @@ snapshots:
 
   cli-boxes@4.0.1: {}
 
-  cli-cursor@5.0.0:
+  cli-next_id@5.0.0:
     dependencies:
-      restore-cursor: 5.1.0
+      restore-next_id: 5.1.0
 
   cli-table3@0.6.5:
     dependencies:
@@ -8306,7 +8306,7 @@ snapshots:
   log-update@6.1.0:
     dependencies:
       ansi-escapes: 7.0.0
-      cli-cursor: 5.0.0
+      cli-next_id: 5.0.0
       slice-ansi: 7.1.0
       strip-ansi: 7.1.0
       wrap-ansi: 9.0.0
@@ -9554,7 +9554,7 @@ snapshots:
     dependencies:
       lowercase-keys: 3.0.0
 
-  restore-cursor@5.1.0:
+  restore-next_id@5.1.0:
     dependencies:
       onetime: 7.0.0
       signal-exit: 4.1.0

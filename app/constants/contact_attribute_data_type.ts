@@ -12,12 +12,3 @@ export const CONTACT_ATTRIBUTE_DATA_TYPE = Enum({
 
 export type ContactAttributeDataType = InferValue<typeof CONTACT_ATTRIBUTE_DATA_TYPE>
 export const ContactAttributeDataType = CONTACT_ATTRIBUTE_DATA_TYPE.accessor
-
-export const CONTACT_ATTRIBUTE_DATA_TYPES = [
-  'string',
-  'number',
-  'date',
-  'boolean',
-  'single_choice',
-  'multiple_choice',
-] as const

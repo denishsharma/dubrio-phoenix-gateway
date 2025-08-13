@@ -8,9 +8,9 @@ export default class extends BaseSchema {
       table.increments('id')
       table.integer('workspace_id').unsigned().references('id').inTable('workspaces')
 
-      table.string('name').notNullable()
-      table.string('slug').notNullable()
-      table.string('data_type').notNullable()
+      table.string('name')
+      table.string('slug')
+      table.string('data_type')
 
       table.boolean('is_default').defaultTo(false)
       table.boolean('is_required').defaultTo(false)
