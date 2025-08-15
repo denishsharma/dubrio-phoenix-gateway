@@ -13,6 +13,11 @@ export class ContactIdentifier extends LucidModelIdentifier('shared/schemas/cont
   support: LucidModelIdentifierSupport.ULID_AS_UID,
 }) {}
 
+export class ContactAttributeIdentifier extends LucidModelIdentifier('shared/schemas/contact/contact_attributes/contact_attribute_identifier')({
+  marker: Symbol('@marker/shared/schemas/contact/contact_attributes/contact_attribute_identifier'),
+  support: LucidModelIdentifierSupport.ULID_AS_UID,
+}) {}
+
 export class ContactAttributeSlug extends SchemaAttribute('shared/schemas/contact/contact_attributes/contact_attribute_slug')({
   marker: Symbol('@marker/shared/schemas/contact/contact_attributes/contact_attribute_slug'),
   schema: SlugFromStringSchema,

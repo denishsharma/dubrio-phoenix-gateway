@@ -2,13 +2,21 @@ import type { ContactAttributeDataType } from '#constants/contact_attribute_data
 import type { BelongsTo, HasMany } from '@adonisjs/lucid/types/relations'
 import type { DateTime } from 'luxon'
 import type { CamelCasedProperties, SnakeCasedProperties } from 'type-fest'
+import LucidUtilityService from '#core/lucid/services/lucid_utility_service'
 import ContactAttributeOption from '#models/contact_attribute_option_model'
 import Workspace from '#models/workspace_model'
-import { BaseModel, belongsTo, column, hasMany } from '@adonisjs/lucid/orm'
+import { compose } from '@adonisjs/core/helpers'
+import { BaseModel, beforeCreate, belongsTo, column, hasMany } from '@adonisjs/lucid/orm'
+import { SoftDeletes } from 'adonis-lucid-soft-deletes'
+import { Effect } from 'effect'
+import { defaultTo } from 'lodash-es'
 
-export default class ContactAttribute extends BaseModel {
+export default class ContactAttribute extends compose(BaseModel, SoftDeletes) {
   @column({ isPrimary: true, serializeAs: null })
   declare id: number
+
+  @column({ serializeAs: 'id' })
+  declare uid: string
 
   @column()
   declare workspaceId: number
@@ -54,6 +62,20 @@ export default class ContactAttribute extends BaseModel {
   public options!: HasMany<typeof ContactAttributeOption>
 
   // ---------------------------
+  // Hooks
+  // ---------------------------
+
+  @beforeCreate()
+  static assignIdentifier(contactAttribute: ContactAttribute) {
+    Effect.runSync(
+      Effect.gen(function* () {
+        const lucidUtility = yield* LucidUtilityService
+        contactAttribute.uid = defaultTo(contactAttribute.uid, yield* lucidUtility.generateIdentifier)
+      }).pipe(Effect.provide(LucidUtilityService.Default)),
+    )
+  }
+
+  // ---------------------------
   // Computed Properties
   // ---------------------------
 
@@ -71,6 +93,7 @@ export default class ContactAttribute extends BaseModel {
  */
 export type ContactAttributeModelFields = CamelCasedProperties<{
   id: ContactAttribute['id'];
+  uid: ContactAttribute['uid'];
   workspaceId: ContactAttribute['workspaceId'];
   name: ContactAttribute['name'];
   dataType: ContactAttribute['dataType'];

@@ -17,6 +17,7 @@ export default class ListContactPayload extends DataPayload('modules/contact/pay
     exclude_attributes: Schema.optional(Schema.Array(Schema.NonEmptyTrimmedString)),
     pagination: Schema.Struct({
       mode: Schema.Literal('number', 'next_id'),
+      // TODO Use Schema.Union
       page: Schema.optionalWith(Schema.Number, { nullable: true }),
       per_page: Schema.optionalWith(Schema.Number, { nullable: true }),
       limit: Schema.optionalWith(Schema.Number, { nullable: true }),
@@ -26,6 +27,5 @@ export default class ListContactPayload extends DataPayload('modules/contact/pay
       attribute: Schema.NonEmptyTrimmedString,
       order: Schema.Literal('asc', 'desc'),
     }))),
-
   }),
 }) {}

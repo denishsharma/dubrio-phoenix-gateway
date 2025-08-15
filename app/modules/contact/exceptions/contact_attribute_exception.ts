@@ -17,6 +17,7 @@ export default class ContactAttributeException extends Exception('contact_attrib
       'duplicate_option_value',
       'slug_clash',
       'invalid_data_type',
+      'contact_attribute_not_found',
     ),
     details: Schema.optional(Schema.Struct({
       field: Schema.optional(Schema.String),
