@@ -205,16 +205,11 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
 
     function list(payload: ProcessedDataPayload<ListContactPayload>) {
       return Effect.gen(function* () {
-        console.warn('🔍 Starting contact list operation with payload:', JSON.stringify(payload, null, 2))
-
         const { trx } = yield* database.requireTransaction()
-        console.warn('✅ Database transaction acquired')
 
         const query = Contact.query({ client: trx })
           .where('workspaceId', payload.workspace.id)
           .whereNull('deletedAt')
-
-        console.warn('🏗️  Base query initialized for workspace:', payload.workspace.id)
 
         const OP = {
           equals: '=',
@@ -231,10 +226,7 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
          * This includes filtering by default fields and custom attributes.
          */
         if (payload.filters && payload.filters.length > 0) {
-          console.warn('🔧 Applying filters:', JSON.stringify(payload.filters, null, 2))
-
           const slug = payload.filters.map(f => f.attribute)
-          console.warn('📝 Filter slugs:', slug)
 
           const attributes = yield* Effect.tryPromise({
             try: () => ContactAttribute.query({ client: trx })
@@ -244,55 +236,37 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
             catch: errorConversion.toUnknownError('Unexpected error while fetching contact attributes'),
           })
 
-          console.warn('📋 Found attributes:', JSON.stringify(attributes, null, 2))
-
           const attributeMap = new Map(attributes.map(attr => [attr.slug, attr]))
 
           let i = 0
           for (const f of payload.filters) {
-            console.warn(`🔍 Processing filter ${i + 1}:`, JSON.stringify(f, null, 2))
-
             const meta = attributeMap.get(f.attribute)
 
             if (!meta) {
-              console.warn('❌ Unknown contact attribute:', f.attribute)
               throw new Error(`Unknown contact attribute: ${f.attribute}`)
             }
-
-            console.warn('ℹ️  Attribute metadata:', JSON.stringify(meta, null, 2))
 
             /**
              * Default fields that live on contacts table
              */
             if (meta.isDefault && meta.defaultFieldMapping) {
-              console.warn('🏠 Processing default field filter:', {
-                attribute: f.attribute,
-                operator: f.operator,
-                value: f.value,
-                column: `contacts.${meta.defaultFieldMapping}`,
-              })
-
               const col = `contacts.${meta.defaultFieldMapping}`
 
               if (f.operator === 'in') {
-                console.warn('📥 Applying IN filter for default field')
                 query.whereIn(col, Array.isArray(f.value) ? f.value : [f.value])
                 continue
               }
 
               if (f.operator === 'includes' || f.operator === 'like') {
-                console.warn('🔍 Applying LIKE filter for default field')
                 query.where(col, 'like', `%${String(f.value)}%`)
                 continue
               }
 
               const sqlOp = OP[f.operator as keyof typeof OP]
               if (!sqlOp) {
-                console.warn('❌ Unknown operator for default field:', f.operator)
                 throw new Error(`Unknown operator: ${f.operator}`)
               }
 
-              console.warn(`⚡ Applying ${sqlOp} filter for default field`)
               query.where(col, sqlOp, f.value)
               continue
             }
@@ -300,16 +274,7 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
             /**
              * Custom attributes that require joins to contact_attribute_values
              */
-            console.warn('🔗 Processing custom attribute filter:', {
-              attribute: f.attribute,
-              operator: f.operator,
-              value: f.value,
-              dataType: meta.dataType,
-            })
-
             const alias = `cav_${++i}`
-            console.warn(`📊 Creating join with alias: ${alias}`)
-
             query.join(`contact_attribute_values as ${alias}`, function () {
               this.on(`${alias}.contact_id`, '=', 'contacts.id')
                 .andOnVal(`${alias}.attribute_id`, '=', meta.id)
@@ -324,100 +289,61 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
                     ? `${alias}.option_id`
                     : `${alias}.value_text`
 
-            console.warn(`📈 Using value column: ${valueCol}`)
-
             if (meta.dataType === 'single_choice' || meta.dataType === 'multiple_choice') {
-              console.warn(`🎯 Processing choice type filter: ${meta.dataType}`)
-
               if (f.operator === 'in' || f.operator === 'includes') {
                 const arr = Array.isArray(f.value) ? f.value : [f.value]
-                console.warn('📥 Applying IN filter for choice type with values:', arr)
                 query.whereIn(valueCol, arr)
               } else {
                 const sqlOp = OP[f.operator as keyof typeof OP]
-                if (!sqlOp) {
-                  console.warn('❌ Unsupported operator for choice type:', f.operator)
-                  throw new Error(`Unsupported operator for choice type: ${f.operator}`)
-                }
-                console.warn(`⚡ Applying ${sqlOp} filter for choice type`)
+                if (!sqlOp) { throw new Error(`Unsupported operator for choice type: ${f.operator}`) }
                 query.where(valueCol, sqlOp, f.value as any)
               }
               continue
             }
 
             if (meta.dataType === 'number') {
-              console.warn('🔢 Processing number type filter')
-
               if (f.operator === 'in') {
                 const arr = Array.isArray(f.value) ? f.value : [f.value]
-                console.warn('📥 Applying IN filter for number type with values:', arr)
                 query.whereIn(valueCol, arr)
               } else if (f.operator === 'includes' || f.operator === 'like') {
-                console.warn('🔍 Applying LIKE filter for number type (cast to string)')
                 query.whereRaw(`CAST(${valueCol} AS CHAR) LIKE ?`, [`%${String(f.value)}%`])
               } else {
                 const sqlOp = OP[f.operator as keyof typeof OP]
-                if (!sqlOp) {
-                  console.warn('❌ Unsupported numeric operator:', f.operator)
-                  throw new Error(`Unsupported numeric operator: ${f.operator}`)
-                }
-                console.warn(`⚡ Applying ${sqlOp} filter for number type`)
+                if (!sqlOp) { throw new Error(`Unsupported numeric operator: ${f.operator}`) }
                 query.where(valueCol, sqlOp, f.value as any)
               }
               continue
             }
 
             if (meta.dataType === 'boolean') {
-              console.warn('✅ Processing boolean type filter')
-
               const v = f.value === true ? 1 : 0
-              console.warn(`🔄 Converting boolean value ${f.value} to ${v}`)
 
               if (f.operator === 'equals') {
-                console.warn('⚡ Applying equals filter for boolean type')
                 query.where(valueCol, '=', v)
               } else if (f.operator === 'not_equals') {
-                console.warn('⚡ Applying not_equals filter for boolean type')
                 query.where(valueCol, '!=', v)
               } else {
-                console.warn('❌ Unsupported boolean operator:', f.operator)
                 throw new Error(`Unsupported boolean operator: ${f.operator}`)
               }
               continue
             }
 
             // Text/date fields
-            console.warn('📝 Processing text/date type filter')
-
             if (f.operator === 'in') {
               const arr = Array.isArray(f.value) ? f.value.map(String) : [String(f.value)]
-              console.warn('📥 Applying IN filter for text/date type with values:', arr)
-
               if (arr.length === 0) {
-                console.warn('⚠️  Empty array for IN operator, adding impossible condition')
                 query.whereRaw('1=0')
               } else {
                 query.whereIn(valueCol, arr)
               }
             } else if (f.operator === 'includes' || f.operator === 'like') {
-              console.warn('🔍 Applying LIKE filter for text/date type')
               query.where(valueCol, 'like', `%${String(f.value)}%`)
             } else {
               const sqlOp = OP[f.operator as keyof typeof OP]
-              if (!sqlOp) {
-                console.warn('❌ Unsupported text/date operator:', f.operator)
-                throw new Error(`Unsupported text/date operator: ${f.operator}`)
-              }
-              console.warn(`⚡ Applying ${sqlOp} filter for text/date type`)
+              if (!sqlOp) { throw new Error(`Unsupported text/date operator: ${f.operator}`) }
               query.where(valueCol, sqlOp, f.value)
             }
           }
-
-          // Log the query after all filters are applied
-          console.warn('🔍 Query after filters applied:')
-          console.warn(query.toSQL())
-        } else {
-          console.warn('📭 No filters provided, using base query only')
         }
 
         /**
@@ -428,21 +354,14 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
           ? payload.sort
           : [{ attribute: 'uid', order: 'asc' as const }]
 
-        console.warn('🔀 Applying sort rules:', JSON.stringify(sortRules, null, 2))
-
         for (const sort of sortRules) {
           const column = SORT_COLUMNS[sort.attribute as keyof typeof SORT_COLUMNS]
           if (!column) {
-            console.warn('❌ Unknown sort attribute:', sort.attribute)
             throw new Error(`Unknown sort attribute: ${sort.attribute}`)
           }
-          console.warn(`📊 Adding sort: ${column} ${sort.order} (nulls first)`)
           query.orderByRaw(`${column} IS NULL`)
           query.orderBy(column, sort.order)
         }
-
-        console.warn('🔍 Query after sorting applied:')
-        console.warn(query.toSQL())
 
         let rows: Contact[] = []
         let pageMeta: any = {}
@@ -450,46 +369,28 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
         /**
          * Apply pagination based on the specified mode.
          */
-        console.warn('📄 Applying pagination:', JSON.stringify(payload.pagination, null, 2))
-
         if (payload.pagination.mode === 'number') {
-          console.warn('🔢 Using number-based pagination')
-
           const page = payload.pagination.page ?? 1
           const perPage = payload.pagination.per_page ?? 25
           const offset = (page - 1) * perPage
 
-          console.warn(`📖 Page ${page}, perPage ${perPage}, offset ${offset}`)
-
           // Get total count for pagination metadata
-          const countQuery = query.clone()
-            .clearSelect()
-            .clearOrder()
-            .countDistinct({ total: 'contacts.id' })
-
-          console.warn('🔍 Count query:')
-          console.warn(countQuery.toSQL())
-
           const totalRow = yield* Effect.tryPromise({
-            try: () => countQuery.first(),
+            try: () => query.clone()
+              .clearSelect()
+              .clearOrder()
+              .countDistinct({ total: 'contacts.id' })
+              .first(),
             catch: errorConversion.toUnknownError('Unexpected error while counting contacts'),
           })
 
           const total = Number((totalRow as any)?.total ?? 0)
           const totalPages = Math.max(1, Math.ceil(total / perPage))
 
-          console.warn(`📊 Total records: ${total}, total pages: ${totalPages}`)
-
-          const dataQuery = query.offset(offset).limit(perPage)
-          console.warn('🔍 Data query with pagination:')
-          console.warn(dataQuery.toSQL())
-
           rows = yield* Effect.tryPromise({
-            try: () => dataQuery,
+            try: () => query.offset(offset).limit(perPage),
             catch: errorConversion.toUnknownError('Unexpected error while retrieving contacts'),
           })
-
-          console.warn(`✅ Retrieved ${rows.length} contacts`)
 
           pageMeta = {
             mode: 'number' as const,
@@ -501,32 +402,22 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
             has_next: page < totalPages,
           }
         } else if (payload.pagination.mode === 'next_id') {
-          console.warn('🔗 Using next_id-based pagination')
-
           const limit = payload.pagination.limit ?? 25
-          console.warn(`📏 Limit: ${limit}`)
 
           // Apply next_id cursor if provided
           if (payload.pagination.next_id) {
-            console.warn(`🔍 Using next_id cursor: ${payload.pagination.next_id}`)
             query.where('contacts.id', '>', payload.pagination.next_id)
           }
 
           // Get limit + 1 to check if there are more records
-          const cursorQuery = query.limit(limit + 1)
-          console.warn('🔍 Cursor query:')
-          console.warn(cursorQuery.toSQL())
-
           const allRows = yield* Effect.tryPromise({
-            try: () => cursorQuery,
+            try: () => query.limit(limit + 1),
             catch: errorConversion.toUnknownError('Unexpected error while retrieving contacts'),
           })
 
           const hasNextPage = allRows.length > limit
           rows = hasNextPage ? allRows.slice(0, limit) : allRows
           const nextCursor = hasNextPage && rows.length > 0 ? rows[rows.length - 1].id.toString() : null
-
-          console.warn(`✅ Retrieved ${rows.length} contacts, hasNextPage: ${hasNextPage}, nextCursor: ${nextCursor}`)
 
           pageMeta = {
             mode: 'next_id' as const,
@@ -541,23 +432,14 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
          */
         let enrichedContacts: any = rows
 
-        console.warn('🎯 Checking if attribute enrichment is needed')
-        console.warn('Include attributes:', payload.include_attributes)
-        console.warn('Exclude attributes:', payload.exclude_attributes)
-
         if (
           (payload.include_attributes && payload.include_attributes.length > 0)
           || (payload.exclude_attributes && payload.exclude_attributes.length > 0)
         ) {
-          console.warn('🔄 Starting attribute enrichment process')
-
           const contactIds = rows.map(contact => contact.id)
-          console.warn(`📋 Contact IDs to enrich: [${contactIds.join(', ')}]`)
 
           if (contactIds.length > 0) {
             // Get all attributes for the workspace
-            console.warn('📚 Fetching all attributes for workspace')
-
             const allAttributes = yield* Effect.tryPromise({
               try: () => ContactAttribute.query({ client: trx })
                 .where('workspaceId', payload.workspace.id)
@@ -565,36 +447,27 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
               catch: errorConversion.toUnknownError('Unexpected error while fetching contact attributes'),
             })
 
-            console.warn(`✅ Found ${allAttributes.length} total attributes:`, allAttributes.map(a => a.slug))
-
             // Filter attributes based on include/exclude rules
             let targetAttributes = allAttributes
 
             if (payload.include_attributes && payload.include_attributes.length > 0) {
-              console.warn('📥 Filtering by include_attributes:', payload.include_attributes)
               targetAttributes = allAttributes.filter(attr =>
                 payload.include_attributes!.includes(attr.slug),
               )
             }
 
             if (payload.exclude_attributes && payload.exclude_attributes.length > 0) {
-              console.warn('📤 Filtering by exclude_attributes:', payload.exclude_attributes)
               targetAttributes = targetAttributes.filter(attr =>
                 !payload.exclude_attributes!.includes(attr.slug),
               )
             }
 
-            console.warn(`🎯 Target attributes after filtering: [${targetAttributes.map(a => a.slug).join(', ')}]`)
-
             // Get attribute values for non-default attributes
             const customAttributes = targetAttributes.filter(attr => !attr.isDefault)
             let attributeValues: any[] = []
 
-            console.warn(`🔧 Found ${customAttributes.length} custom attributes to fetch values for`)
-
             if (customAttributes.length > 0) {
               const customAttributeIds = customAttributes.map(attr => attr.id)
-              console.warn('🔍 Fetching attribute values for attribute IDs:', customAttributeIds)
 
               attributeValues = yield* Effect.tryPromise({
                 try: () => trx
@@ -604,12 +477,9 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
                   .select('contact_id', 'attribute_id', 'value_text', 'value_number', 'value_boolean', 'option_id'),
                 catch: errorConversion.toUnknownError('Unexpected error while fetching contact attribute values'),
               })
-
-              console.warn(`✅ Found ${attributeValues.length} attribute values`)
             }
 
             // Group attribute values by contact
-            console.warn('🗂️  Grouping attribute values by contact')
             const valuesByContact = new Map<number, any[]>()
             attributeValues.forEach((value) => {
               if (!valuesByContact.has(value.contact_id)) {
@@ -618,11 +488,7 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
               valuesByContact.get(value.contact_id)!.push(value)
             })
 
-            console.warn(`📊 Grouped values for ${valuesByContact.size} contacts`)
-
             // Enrich contacts with attribute data
-            console.warn('🌟 Enriching contacts with attribute data')
-
             enrichedContacts = rows.map((contact) => {
               const contactData = contact.serialize()
               const attributes: any = {}
@@ -675,26 +541,13 @@ export default class ContactService extends Effect.Service<ContactService>()('@s
                 attributes,
               }
             })
-
-            console.warn('✅ Contact enrichment completed')
           }
-        } else {
-          console.warn('⏭️  Skipping attribute enrichment - no include/exclude rules specified')
         }
 
-        const result = {
+        return {
           data: enrichedContacts,
           pagination: pageMeta,
         }
-
-        console.warn('🎉 Contact list operation completed successfully')
-        console.warn('📊 Final result summary:', {
-          contactCount: enrichedContacts.length,
-          paginationMode: pageMeta.mode,
-          hasAttributes: enrichedContacts.length > 0 && enrichedContacts[0].attributes !== undefined,
-        })
-
-        return result
       }).pipe(telemetry.withTelemetrySpan('list_contacts'))
     }
 

@@ -12,11 +12,13 @@ import TelemetryService from '#core/telemetry/services/telemetry_service'
 import BasicListContactPayload from '#modules/contact/payloads/contact_manager/basic_list_contact_payload'
 import CreateContactPayload from '#modules/contact/payloads/contact_manager/create_contact_payload'
 import DeleteContactPayload from '#modules/contact/payloads/contact_manager/delete_contact_payload'
+import ListContactPayload from '#modules/contact/payloads/contact_manager/list_contact_payload'
 import RetrieveContactDetailsPayload from '#modules/contact/payloads/contact_manager/retrieve_contact_details_payload'
 import UpdateContactPayload from '#modules/contact/payloads/contact_manager/update_contact_payload'
 import BasicListContactRequestPayload from '#modules/contact/payloads/request/contact_manager/basic_list_contact_request_payload'
 import CreateContactRequestPayload from '#modules/contact/payloads/request/contact_manager/create_contact_request_payload'
 import DeleteContactRequestPayload from '#modules/contact/payloads/request/contact_manager/delete_contact_request_payload'
+import ListContactRequestPayload from '#modules/contact/payloads/request/contact_manager/list_contact_request_payload'
 import RetrieveContactDetailsRequestPayload from '#modules/contact/payloads/request/contact_manager/retrieve_contact_details_request_payload'
 import UpdateContactRequestPayload from '#modules/contact/payloads/request/contact_manager/update_contact_request_payload'
 import ContactService from '#modules/contact/services/contact_service'
@@ -75,48 +77,64 @@ export default class ContactController {
     }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
   }
 
-  // async list(ctx: FrameworkHttpContext) {
-  //   return await Effect.gen(this, function* () {
-  //     const database = yield* DatabaseService
-  //     const lucidModelRetrieval = yield* LucidModelRetrievalService
+  async list(ctx: FrameworkHttpContext) {
+    return await Effect.gen(this, function* () {
+      const database = yield* DatabaseService
+      const lucidModelRetrieval = yield* LucidModelRetrievalService
+      const responseContext = yield* HttpResponseContextService
+      const telemetry = yield* TelemetryService
 
-  //     const contactService = yield* ContactService
+      const contactService = yield* ContactService
 
-  //     return yield* Effect.gen(function* () {
-  //       const { trx } = yield* database.requireTransaction()
-  //       const payload = yield* ListContactRequestPayload.fromRequest()
+      return yield* Effect.gen(function* () {
+        const { trx } = yield* database.requireTransaction()
+        const payload = yield* ListContactRequestPayload.fromRequest()
 
-  //       const workspace = yield* pipe(
-  //         WithRetrievalStrategy(
-  //           RetrieveWorkspaceUsingIdentifier,
-  //           retrieve => retrieve(payload.workspace_identifier),
-  //           {
-  //             exception: {
-  //               throw: true,
-  //             },
-  //             query: {
-  //               client: trx,
-  //             },
-  //           },
-  //         ),
-  //         lucidModelRetrieval.retrieve,
-  //       )
+        const workspace = yield* pipe(
+          WithRetrievalStrategy(
+            RetrieveWorkspaceUsingIdentifier,
+            retrieve => retrieve(payload.workspace_identifier),
+            {
+              exception: {
+                throw: true,
+              },
+              query: {
+                client: trx,
+              },
+            },
+          ),
+          lucidModelRetrieval.retrieve,
+        )
 
-  //       const result = yield* pipe(
-  //         DataSource.known({
-  //           workspace,
-  //           filters: payload.filters,
-  //           include_attributes: payload.include_attributes,
-  //           exclude_attributes: payload.exclude_attributes,
-  //           pagination: payload.pagination,
-  //           sort: payload.sort,
-  //         }),
-  //         ListContactPayload.fromSource(),
-  //         Effect.flatMap(contactService.list),
-  //       )
-  //     })
-  //   })
-  // }
+        const result = yield* pipe(
+          DataSource.known({
+            workspace,
+            filters: payload.filters,
+            include_attributes: payload.include_attributes,
+            exclude_attributes: payload.exclude_attributes,
+            pagination: payload.pagination ?? {
+              mode: 'number' as const,
+              page: 1,
+              per_page: 25,
+              limit: null,
+              next_id: null,
+            },
+            sort: payload.sort,
+          }),
+          ListContactPayload.fromSource(),
+          Effect.flatMap(contactService.list),
+        )
+
+        yield* responseContext.setMessage('Contacts retrieved successfully.')
+
+        return result
+      }).pipe(
+        Effect.provide(DatabaseTransaction.provide(yield* database.createTransaction())),
+        telemetry.withTelemetrySpan('contact.list'),
+        telemetry.withScopedTelemetry(this.telemetryScope),
+      )
+    }).pipe(ApplicationRuntimeExecution.runPromise({ ctx }))
+  }
 
   async listBasic(ctx: FrameworkHttpContext) {
     return await Effect.gen(this, function* () {
